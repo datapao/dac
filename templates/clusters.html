@@ -1,0 +1,45 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+{% include 'level-info-bar.html' %}
+
+
+<h1 class="title">Clusters</h1>
+<table class="table is-hoverable is-fullwidth">
+  <thead>
+    <tr>
+      <td>Name</td>
+      <td>State</td>
+      <td>ID</td>
+      <td>Workspace</td>
+      <td>Driver type</td>
+      <td>Worker type</td>
+      <td>Workers</td>
+      <td>DBU cost / hour</td>
+      <td>HW cost / hour</td>
+      <td>Cost / hour</td>
+    </tr>
+  <tbody>
+    {%for cluster in clusters%}
+    <tr>
+      <td><a href={{ url_for("view_cluster", cluster_id=cluster.id)}}>{{cluster.name}}</a></td>
+      <td>{{cluster.state}}</td>
+      <td>{{cluster.id}}</td>
+      <td><a href="/workspaces">{{cluster.workspace.id}}</a></td>
+      <td>{{cluster.driver_type}}</td>
+      <td>{{cluster.worker_type}}</td>
+      <td>{{cluster.num_workers}}</td>
+      <td>{{cluster.dbu_cost_per_hour}}</td>
+      <td>{{cluster.hw_cost_per_hour}}</td>
+      <td>{{cluster.cost_per_hour}}</td>
+    </tr>
+    {% endfor %}
+
+  </tbody>
+
+
+  </tr>
+  </thead>
+</table>
+{% endblock %}

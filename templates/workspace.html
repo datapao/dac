@@ -1,0 +1,247 @@
+{% extends "index.html" %}
+{% block content %}
+
+<h1 class="title">Workspace: {{ workspace.name }}</h1>
+<h1 class="subtitle">{{ workspace.id }}</h1>
+
+
+<section class="section">
+    <h3 class="title is-3">Deatils and Costs</h3>
+    <div class="columns">
+        <div class="column is-half">
+            <table class="table">
+                <tr>
+                    <th>Type</th>
+                    <td>{{workspace.type}}</td>
+                </tr>
+                <tr>
+                    <th>Clusters</th>
+                    <td>{{workspace.clusters | length}}</td>
+                </tr>
+                <tr>
+                    <th>Active Clusters</th>
+                    <td>{{workspace.active_clusters() | length}}</td>
+                </tr>
+            </table>
+        </div>
+
+
+
+        <div class="column is-half">
+            <div class="columns">
+
+                <div class="column">
+                    <table class="table">
+                        <tr>
+                            <th>Daily price</th>
+                            <td>$75.01</td>
+                        </tr>
+                        <tr>
+                            <th>Daily DBU cost</th>
+                            <td>$21.12</td>
+                        </tr>
+                        <tr>
+                            <th>Daily VM</th>
+                            <td>$96.12</td>
+                        </tr>
+                    </table>
+
+                </div>
+
+                <div class="column is-3">
+                    <br>
+
+                    <div class="dropdown">
+
+                        <div class="dropdown-trigger">
+                            <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
+                                <span>Daily</span>
+                                <span class="icon is-small">
+                                    <i class="fas fa-angle-down" aria-hidden="true"></i>
+                                </span>
+                            </button>
+                        </div>
+                        <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                            <div class="dropdown-content">
+                                <a href="#" class="dropdown-item">
+                                    Monthly
+                                </a>
+                                <a class="dropdown-item is-active">
+                                    Daily
+                                </a>
+                                <a href="#" class="dropdown-item">
+                                    Hourly
+                                </a>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+</section>
+
+<h3 class="title is-3">Trends</h3>
+<section class="section">
+    <div class="columns">
+        <div class="column is-half">
+            <canvas id="chart-price"></canvas>
+        </div>
+        <div class="column is-half">
+            <canvas id="chart-clusters"></canvas>
+        </div>
+    </div>
+</section>
+
+
+<h3 class="title is-3">Clusters</h3>
+<section class="section">
+    <table class="table is-hoverable is-fullwidth">
+        <thead>
+            <tr>
+                <td>Name</td>
+                <td>State</td>
+                <td>ID</td>
+                <td>Workspace</td>
+                <td>Driver type</td>
+                <td>Worker type</td>
+                <td>Workers</td>
+                <td>DBU cost / hour</td>
+                <td>HW cost / hour</td>
+                <td>Cost / hour</td>
+            </tr>
+        <tbody>
+            {%for cluster in workspace.clusters%}
+            <tr>
+                <td><a href={{ url_for("view_cluster", cluster_id=cluster.id)}}>{{cluster.name}}</a></td>
+                <td>{{cluster.state}}</td>
+                <td>{{cluster.id}}</td>
+                <td><a href="/workspaces">{{cluster.workspace.id}}</a></td>
+                <td>{{cluster.driver_type}}</td>
+                <td>{{cluster.worker_type}}</td>
+                <td>{{cluster.num_workers}}</td>
+                <td>{{cluster.dbu_cost_per_hour}}</td>
+                <td>{{cluster.hw_cost_per_hour}}</td>
+                <td>{{cluster.cost_per_hour}}</td>
+            </tr>
+            {% endfor %}
+
+        </tbody>
+
+
+        </tr>
+        </thead>
+    </table>
+</section>
+
+
+<script>
+    var ctx = document.getElementById('chart-price').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Daily price',
+                data: [114.65, 400.31, 248.11, 327.67, 401.98, 457.65],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+
+    var ctx = document.getElementById('chart-clusters').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Clusters',
+                data: [3, 22, 13, 15, 16, 19],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+    var ctx = document.getElementById('chart-users').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Users',
+                data: [25, 31, 31, 34, 70, 76],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+</script>
+
+
+<script>
+    function getAll(selector) {
+        return Array.prototype.slice.call(document.querySelectorAll(selector), 0);
+    }
+
+    var $dropdowns = getAll('.dropdown:not(.is-hoverable)');
+
+    if ($dropdowns.length > 0) {
+        $dropdowns.forEach(function ($el) {
+            $el.addEventListener('click', function (event) {
+                event.stopPropagation();
+                $el.classList.toggle('is-active');
+            });
+        });
+
+        document.addEventListener('click', function (event) {
+            closeDropdowns();
+        });
+    }
+
+    function closeDropdowns() {
+        $dropdowns.forEach(function ($el) {
+            $el.classList.remove('is-active');
+        });
+    }
+
+</script>
+{% endblock %}

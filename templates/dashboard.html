@@ -1,0 +1,138 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">Dashboard</h1>
+{% include 'level-info-bar.html' %}
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-daily-price"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-clusters"></canvas>
+    </div>
+</div>
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-users"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-jobs"></canvas>
+    </div>
+</div>
+
+<script>
+    var ctx = document.getElementById('chart-daily-price').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Daily price',
+                data: [114.65, 400.31, 248.11, 327.67, 401.98, 457.65],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+
+    var ctx = document.getElementById('chart-clusters').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Clusters',
+                data: [3, 22, 13, 15, 16, 19],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+    var ctx = document.getElementById('chart-users').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Users',
+                data: [25, 31, 31, 34, 70, 76],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+
+
+    function randn(lower, upper, err) {
+        return (Math.random() * (upper - lower)) + lower + err * Math.random();
+    }
+
+    data_scatter = []
+    colors = []
+    for (i = 0; i < 76; i++) {
+        data_scatter.push({
+            x: randn(70 + i, 79 + i * 2, 2),
+            y: randn(200 + i, 270 + i, 20 * i),
+            r: randn(2, 4, 3.5)
+        })
+        colors.push(["#7B8CDE", "#E88D67", "#9999C3"][i % 3])
+    }
+    console.log(["#7B8CDE", "#E88D67", "#9999C3"] * 12)
+
+    var ctx = document.getElementById('chart-jobs').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'bubble',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Jobs',
+                title: "Jobs",
+                data: data_scatter,
+                backgroundColor: colors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+</script>
+{% endblock %}

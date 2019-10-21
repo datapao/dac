@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="https://databricks.com/wp-content/uploads/2016/11/cropped-DB_bug_web_RGB_512px-1-32x32.png"
+        sizes="32x32">
+    <title>Databricks Admin Center</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.5/css/bulma.min.css">
+    <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0/dist/Chart.min.js"></script>
+    <style>
+        html,
+        body,
+        #app {
+            height: 100%;
+        }
+
+        #app {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content {
+            flex: 1;
+        }
+
+        .footer {
+            margin-top: -12px;
+        }
+
+        @media screen and (max-width: 768px) {
+            #menu-toggle:checked+.nav-menu {
+                display: block;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar" role="navigation" aria-label="main navigation">
+        <div class="navbar-brand">
+            <a class="navbar-item" href="/">
+                <img src="https://docs.databricks.com/_static/databricks-logo-mobile.png" width="112" height="28">
+            </a>
+
+            <a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="false"
+                data-target="navbarBasicExample">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+            </a>
+        </div>
+
+        <div id="navbarBasicExample" class="navbar-menu">
+            <div class="navbar-start">
+
+                <a class="navbar-item" href="/">
+                    Dashboard
+                </a>
+
+                <a class="navbar-item" href="/workspaces">
+                    Workspaces
+                </a>
+
+                <a class="navbar-item" href="/clusters">
+                    Clusters
+                </a>
+
+                <a class="navbar-item" href="/users">
+                    Users
+                </a>
+
+                <a class="navbar-item" href="/alerts">
+                    <span style="margin-right: 4px;">Alerting </span><span class="tag is-danger"
+                        style="font-weight: 800;"> 2 alerts</span>
+                </a>
+
+
+            </div>
+
+            <div class="navbar-end">
+                <div class="navbar-item">
+                    <a class="nav-item is-tab">
+                        <span class="icon"><i class="fa fa-user"></i></span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="section">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+
+
+
+    <footer class="footer is-hidden">
+        <div class="container">
+            <div class="content has-text-centered">
+
+            </div>
+        </div>
+    </footer>
+
+
+
+</body>
+
+</html>

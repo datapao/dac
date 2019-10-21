@@ -1,0 +1,124 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">Cluster {{ cluster.name }}</h1>
+<h1 class="subtitle">Cluster {{ cluster.state }}</h1>
+<section class="section">
+    <table class="table">ß
+        <tr>
+            <th>Cloud provider</th>
+            <td>{{cluster.workspace.type}}</td>
+        </tr>
+        <tr>
+            <th>Workspace</th>
+            <td><a href={{url_for("view_workspace", workspace_id=cluster.workspace_id)}}>{{cluster.workspace_id}}</a>
+            </td>
+        </tr>
+
+        <tr>
+            <th>Driver type</th>
+            <td>{{cluster.driver_type}}</td>
+        </tr>
+        <tr>
+            <th>Worker type</th>
+            <td>{{cluster.worker_type}}</td>
+        </tr>
+        <tr>
+            <th>Workers</th>
+            <td>{{cluster.num_workers}}</td>
+        </tr>
+        <tr>
+            <th>Created by</th>
+            <td>{{cluster.creator_user_name}}</td>
+        </tr>
+
+    </table>
+</section>
+
+
+<section class="section">
+    <div class="columns">
+        <div class="column is-half">
+            <canvas id="chart-price"></canvas>
+        </div>
+        <div class="column is-half">
+            <canvas id="chart-clusters"></canvas>
+        </div>
+    </div>
+</section>
+
+
+<script>
+    var ctx = document.getElementById('chart-price').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Daily price',
+                data: [114.65, 400.31, 248.11, 327.67, 401.98, 457.65],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+
+    var ctx = document.getElementById('chart-clusters').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Clusters',
+                data: [3, 22, 13, 15, 16, 19],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+    var ctx = document.getElementById('chart-users').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+            datasets: [{
+                label: 'Users',
+                data: [25, 31, 31, 34, 70, 76],
+                backgroundColor: '#7B8CDE',
+                borderColor: '#7B8CDE',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+</script>
+{% endblock %}
