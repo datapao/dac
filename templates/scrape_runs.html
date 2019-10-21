@@ -1,0 +1,57 @@
+{% extends "index.html" %}
+{% block content %}
+
+<div class="level">
+  <div class="level-left">
+      <div>
+        <h1 class="title">Scraper Runs</h1>
+        <h1 class="title subtitle">Last 15 scraper runs</h1>    
+      </div>
+  </div>
+  <div class="level-left">
+    <div>
+      <div style="text-align: right; font-style:italic">Time since last scrape</div>
+      <div style="text-align: right; font-style:italic;">{{'%0.2f'| format(last_scrape.total_seconds() |float)}}s</div>
+  </div>
+  </div>
+  
+</div>
+
+<table class="table is-hoverable is-fullwidth">
+  <thead>
+    <tr>
+      <td>scraper_run_id</td>
+      <td>start_time</td>
+      <td>end_time</td>
+      <td>duration</td>
+      <td>status</td>
+      <td>num_workspaces</td>
+      <td>num_clusters</td>
+      <td>num_events</td>
+      <td>num_jobs</td>
+      <td>num_job_runs</td>
+      
+    </tr>
+  <tbody>
+    {%for run in runs%}
+    <tr>
+      <td>{{run.scraper_run_id[:8]}}</td>
+      <td>{{run.start_time | datetime}}</td>
+      <td>{{run.end_time | datetime}}</td>
+      <td>{{run.duration().total_seconds()}}</td>
+      <td>{{run.status}}</td>
+      <td>{{run.num_workspaces}}</td>
+      <td>{{run.num_clusters}}</td>
+      <td>{{run.num_events}}</td>
+      <td>{{run.num_jobs}}</td>
+      <td>{{run.num_job_runs}}</td>
+    </tr>
+    {% endfor %}
+
+  </tbody>
+
+
+  </tr>
+  </thead>
+</table>
+{% endblock %}

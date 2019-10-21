@@ -1,0 +1,102 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">User {{ user.username }}</h1>
+
+
+<div class="columns">
+    <div class="column">
+        <h1 class="title is-3">Details</h1>
+        <table class="table">
+            <tr>
+                <th>Username</th>
+                <td>{{ user.username }}</td>
+            </tr>
+            <tr>
+                <th>Full name</th>
+                <td>{{ user.name }}</td>
+            </tr>
+            <tr>
+                <th>Primary e-mail</th>
+                <td>{{ user.primary_email}}</td>
+            </tr>
+            <tr>
+                <th>Workspaces</th>
+                <td>
+                    <table>
+                        {% for workspace in user.user_workspaces %}
+                        <tr>
+                            <td><a href={{ url_for("view_workspace", workspace_id=workspace.workspace_id) }}>{{ workspace.workspace.name }}</a></td>
+                            <!-- TODO: add dbu/cost to this mini table -->
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="column">
+        <h1 class="title is-3">Cluster usage</h1>
+        <table class="table">
+            <tr>
+                <th>Running time (total)</th>
+                <td>{{cost.interval | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (total)</th>
+                <td>{{cost.interval_dbu | round(1, 'common')}}</td>
+            </tr>
+            <tr>
+                <th>Total Cost</th>
+                <td>${{ cost.cost | round(2, 'common')}}</td>
+            </tr>
+            <tr>
+                <th>Running time (7 days)</th>
+                <td>{{cost.weekly_interval_sum | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (7 days)</th>
+                <td>{{cost.weekly_interval_dbu_sum | round(1, 'common')}}</td>
+            </tr>
+            <tr>
+                <th>Total Cost (7 days)</th>
+                <td>${{ cost.weekly_cost | round(2, 'common')}}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-dbus"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-runtime"></canvas>
+    </div>
+</div>
+
+
+<script>
+
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+
+    interactive_time_stats = time_stats['interactive'];
+    interactive_interval_dbu_sum = interactive_time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    interactive_interval_sum = interactive_time_stats.map(({interval_sum}) => interval_sum);
+
+    job_time_stats = time_stats['job'];
+    job_interval_dbu_sum = job_time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    job_interval_sum = job_time_stats.map(({interval_sum}) => interval_sum);
+
+    labels = time_stats['job'].map(({ ts }) => ts);
+
+    stacked_chart('chart-dbus', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
+    stacked_chart('chart-runtime', 'Total Run time (hours)', 'line', false, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
+
+</script>
+
+
+{% endblock %}

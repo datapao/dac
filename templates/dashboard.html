@@ -1,0 +1,66 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">Dashboard</h1>
+
+{% include 'level-info-bar.html' %}
+
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-dbu-over-time"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-running-time"></canvas>
+    </div>
+</div>
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-dbu-last7"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-cumulative-cluster-dbu"></canvas>
+    </div>
+</div>
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-running-jobs"></canvas>
+    </div>
+</div>
+
+
+<script>
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe }}');
+    var last7dbu = JSON.parse('{{ last7dbu | tojson | safe }}');
+    var numjobs = JSON.parse('{{ numjobs | tojson | safe }}');
+
+    interactive_time_stats = time_stats['interactive'];
+    interactive_interval_dbu_sum = interactive_time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    interactive_interval_sum = interactive_time_stats.map(({interval_sum}) => interval_sum);
+    interactive_dbu_cumsum = interactive_time_stats.map(({dbu_cumsum}) => dbu_cumsum);
+
+    job_time_stats = time_stats['job'];
+    job_interval_dbu_sum = job_time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    job_interval_sum = job_time_stats.map(({interval_sum}) => interval_sum);
+    job_dbu_cumsum = job_time_stats.map(({dbu_cumsum}) => dbu_cumsum);
+
+    jobs_count = numjobs.map(({job_id}) => job_id);
+    labels = interactive_time_stats.map(({ts}) => ts);
+
+    interactive_last_7_dbu = last7dbu['interactive'].map(({interval_dbu}) => interval_dbu);
+    job_last_7_dbu = last7dbu['job'].map(({interval_dbu}) => interval_dbu);
+    seven_days_label = last7dbu['job'].map(({ts}) => ts);
+
+    stacked_chart('chart-dbu-over-time', 'DBU over time', 'line', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
+    stacked_chart('chart-running-time', "Running time (hours)", 'line', false, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
+    stacked_chart('chart-dbu-last7', 'Last 7 days DBU', 'line', true, seven_days_label, 'Interactive', interactive_last_7_dbu, 'Job', job_last_7_dbu);
+    stacked_chart('chart-cumulative-cluster-dbu', 'Cumulative DBU', 'line', true, labels, 'Interactive', interactive_dbu_cumsum, 'Job', job_dbu_cumsum);
+    chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);
+
+</script>
+
+
+{% endblock %}

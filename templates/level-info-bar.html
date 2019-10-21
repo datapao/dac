@@ -1,0 +1,32 @@
+<nav class="level">
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Workspaces</p>
+      <p class="title">{{data.workspaces}}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Active Clusters</p>
+      <p class="title">{{data.clusters}}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Active DBU Count</p>
+      <p class="title">{{data.daily_dbu | round(1, 'common')}}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Daily cost</p>
+      <p class="title">${{data.daily_dbu_cost | round(1, 'common')}}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Active Users</p>
+      <p class="title">{{data.user_count}}</p>
+    </div>
+  </div>
+</nav>

@@ -1,0 +1,10 @@
+.venv
+.env
+.vscode
+__pycache__*.db
+__pycache__
+*.db
+*.pyc
+notebooks
+.ipynb_checkpoints
+configs
