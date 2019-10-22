@@ -3,6 +3,8 @@
 Databricks Admin Center (DAC) solves the problem of overview of Databricks workspaces, clusters and Users.
 
 # Running
+0) Copy the githooks from `.githooks` to `.git/hooks`
+
 1) Create and activate virtualenv environment
 ```
 virtualenv --no-site-packages --python=python3.6 .venv
