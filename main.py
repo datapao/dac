@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import argparse
 
+
 def scrape():
     print("Scraping started...")
     engine = create_engine(engine_url)
@@ -13,7 +14,7 @@ def scrape():
     DBSession = sessionmaker(bind=engine)
     session = DBSession()
 
-    workspaces = [ 
+    workspaces = [
         Workspace(
             url="dbc-b5882a77-2f55.cloud.databricks.com",
             id="dbc-b5882a77-2f55",
@@ -28,7 +29,7 @@ def scrape():
             name="Datapao Azure Main",
             token=os.getenv("DATABRICKS_TOKEN_MAIN_AZURE")
         ),
-         Workspace(
+        Workspace(
             url="https://westeurope.azuredatabricks.net/?o=2381314298301659",
             id="2381314298301659",
             type="AZURE",
@@ -38,20 +39,20 @@ def scrape():
     ]
     for workspace in workspaces:
         session.merge(workspace)
-        
+
         api = DatabricksAPI(host=workspace.url, token=workspace.token)
         clusters = api.cluster.list_clusters()
         for c in clusters["clusters"]:
             cluster = Cluster(
-                        id = c["cluster_id"], 
-                        name = c["cluster_name"],
-                        state = c["state"],
-                        driver_type = c["driver_node_type_id"],
-                        worker_type = c["node_type_id"],
-                        num_workers = c["num_workers"],
-                        spark_version = c["spark_version"],
-                        creator_user_name = c["creator_user_name"],
-                        workspace_id = workspace.id
+                id=c["cluster_id"],
+                name=c["cluster_name"],
+                state=c["state"],
+                driver_type=c["driver_node_type_id"],
+                worker_type=c["node_type_id"],
+                num_workers=c["num_workers"],
+                spark_version=c["spark_version"],
+                creator_user_name=c["creator_user_name"],
+                workspace_id=workspace.id
             )
             cluster.workspace_id = workspace.id
             session.merge(cluster)
@@ -61,15 +62,18 @@ def scrape():
     session.commit()
     print("Scraping done")
 
+
 app = Flask(__name__)
 engine = create_engine(engine_url)
 Base.metadata.bind = engine
+
 
 def create_session():
     DBSession = sessionmaker()
     DBSession.bind = engine
     session = DBSession()
     return session
+
 
 @app.route('/')
 def view_dashboard():
@@ -81,10 +85,12 @@ def view_dashboard():
     }
     return render_template('dashboard.html', data=data)
 
+
 @app.route('/workspaces/<string:workspace_id>')
 def view_workspace(workspace_id):
     session = create_session()
-    workspace = session.query(Workspace).filter(Workspace.id == workspace_id).one()
+    workspace = session.query(Workspace).filter(
+        Workspace.id == workspace_id).one()
     return render_template('workspace.html', workspace=workspace)
 
 
@@ -94,9 +100,11 @@ def view_workspaces():
     workspaces = session.query(Workspace).all()
     return render_template('workspaces.html', workspaces=workspaces)
 
+
 @app.route('/alerts')
 def view_alerts():
     return render_template('alerts.html')
+
 
 @app.route('/users')
 def view_users():
@@ -121,9 +129,11 @@ def view_clusters():
         cluster.cost_per_hour = "$25.9"
     return render_template('clusters.html', clusters=clusters)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('command',  type=str, help='command to run', choices=["create_db", "ui", "scrape"])
+    parser.add_argument('command',  type=str, help='command to run', choices=[
+                        "create_db", "ui", "scrape"])
     args = parser.parse_args()
     command = args.command
     if command == "ui":
