@@ -132,7 +132,7 @@ def view_clusters():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('command',  type=str, help='command to run', choices=[
+    parser.add_argument('command', type=str, help='command to run', choices=[
                         "create_db", "ui", "scrape"])
     args = parser.parse_args()
     command = args.command
