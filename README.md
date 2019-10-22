@@ -5,7 +5,7 @@ Databricks Admin Center (DAC) solves the problem of overview of Databricks works
 # Running
 1) Create and activate virtualenv environment
 ```
-virtualenv --no-site-packages .venv
+virtualenv --no-site-packages --python=python3.6 .venv
 source .venv/bin/activate
 ```
 
