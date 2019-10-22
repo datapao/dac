@@ -5,6 +5,7 @@ from flask import Flask, render_template
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import argparse
+import configparser
 
 
 def scrape():
@@ -134,10 +135,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run', choices=[
                         "create_db", "ui", "scrape"])
+    parser.add_argument('-c', '--config', type=str,
+                        help='path to config file to use', default="config.ini")
     args = parser.parse_args()
     command = args.command
+    config = configparser.ConfigParser()
+    config.read(args.config)
     if command == "ui":
-        app.run(debug=True)
+        app.run(debug=config["web"].getboolean("development"))
     elif command == "create_db":
         create_db()
     elif command == "scrape":
