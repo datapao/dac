@@ -1,0 +1,51 @@
+#!/usr/bin/env python
+"""
+Forked from https://github.com/cbrueffer/pep8-git-hook/blob/master/pre-commit
+Done significant modifications (zoltanctoth)
+"""
+from __future__ import with_statement, print_function
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+# don't fill in both of these
+select_codes = []
+ignore_codes = ["E501"]
+# Add things like "--max-line-length=120" below
+overrides = []
+
+
+def system(*args, **kwargs):
+    kwargs.setdefault('stdout', subprocess.PIPE)
+    proc = subprocess.Popen(args, **kwargs)
+    out, err = proc.communicate()
+    return out
+
+
+def main():
+    modified = re.compile('^ ?[AM]+\\s+(?P<name>.*\\.py$)', re.MULTILINE)
+    files = system('git', 'status', '--porcelain').decode("utf-8")
+    files = modified.findall(files)
+
+    for f in files:
+        args = ['pycodestyle']
+        if select_codes and ignore_codes:
+            print(u'Error: select and ignore codes are mutually exclusive')
+            sys.exit(1)
+        elif select_codes:
+            args.extend(('--select', ','.join(select_codes)))
+        elif ignore_codes:
+            args.extend(('--ignore', ','.join(ignore_codes)))
+        args.extend(overrides)
+        args.append(f)
+        output = system(*args)
+        if output:
+            print(output.decode("utf-8"),)
+            sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
