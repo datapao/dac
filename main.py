@@ -63,7 +63,8 @@ def view_users():
 @app.route('/clusters/<string:cluster_id>')
 def view_cluster(cluster_id):
     session = create_session()
-    cluster = session.query(Cluster).filter(Cluster.cluster_id == cluster_id).one()
+    cluster = session.query(Cluster).filter(
+        Cluster.cluster_id == cluster_id).one()
     return render_template('cluster.html', cluster=cluster)
 
 

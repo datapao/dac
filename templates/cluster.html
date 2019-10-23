@@ -52,6 +52,33 @@
 </section>
 
 
+<h3 class="title is-3">Events</h3>
+<section class="section">
+    <table class="table is-hoverable is-fullwidth">
+        <thead>
+            <tr>
+                <td>Timestamp</td>
+                <td>Event</td>
+                <td>Details</td>
+            </tr>
+        <tbody>
+            {%for event in cluster.eventFilterNot(["DRIVER_HEALTHY"])%}
+            <tr>
+                <td>{{event.timestamp}}</td>
+                <td>{{event.type}}</td>
+                <td>{{event.human_details()}}</td>
+            </tr>
+            {% endfor %}
+
+        </tbody>
+
+
+        </tr>
+        </thead>
+    </table>
+</section>
+
+
 <script>
     var ctx = document.getElementById('chart-price').getContext('2d');
     var myChart = new Chart(ctx, {

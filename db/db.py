@@ -39,6 +39,10 @@ class Cluster(Base):
     aws_attributes = Column(JSON)
     spark_conf = Column(JSON)
     spark_env_vars = Column(JSON)
+    events = relationship("Event")
+
+    def eventFilterNot(self, types):
+        return [e for e in self.events if e.type not in types]
 
 
 class Workspace(Base):
@@ -55,14 +59,24 @@ class Workspace(Base):
         return [c for c in self.clusters if c.state in ["RUNNING", "PENDING"]]
 
 
-class Events(Base):
+class Event(Base):
     __tablename__ = "events"
-    id = Column(BigInteger, primary_key=True)
-    cluster_id = Column(String, primary_key=True)
-    timestamp = Column(DateTime, nullable=False)
-    # This will be the events details, which is a different JSON for every type of events. Ouch.
-    # TODO(gulyasm): Fix this monstrosity
-    details = Column(String)
+    cluster_id = Column(String, ForeignKey(
+        "clusters.cluster_id"), primary_key=True)
+    timestamp = Column(DateTime, primary_key=True)
+    details = Column(JSON, nullable=False)
+    type = Column(String, nullable=False)
+    cluster = relationship(Cluster)
+
+    def human_details(self):
+        patterns = {
+            "TERMINATING": lambda x: "Cluster is terminated due to {}".format(x["reason"]["code"].capitalize()),
+            "DRIVER_HEALTHY": lambda _: "Driver is healthy",
+            "RUNNING": lambda x: "Cluster is running with {current_num_workers} workers (target: {target_num_workers})".format(**x),
+            "STARTING": lambda x: "Cluster is started by {user}".format(**x),
+            "CREATING": lambda x: "Cluster is created by: {user}".format(**x)
+        }
+        return patterns[self.type](self.details)
 
 
 def create_db():

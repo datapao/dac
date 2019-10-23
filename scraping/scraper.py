@@ -1,7 +1,7 @@
 import os
 import logging
 from databricks_api import DatabricksAPI
-from db import Cluster, Workspace, Base, engine_url
+from db import Cluster, Workspace, Base, Event, engine_url
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import datetime
@@ -15,8 +15,14 @@ def write_to_file(cluster):
         f.write(json.dumps(cluster) + "\n")
 
 
-def scrape_event(cluster, event, session, api):
-    pass
+def scrape_event(cluster, event_dict, session, api):
+    event = Event(
+        cluster_id=event_dict["cluster_id"],
+        timestamp=to_time(event_dict["timestamp"]),
+        type=event_dict["type"],
+        details=event_dict["details"]
+    )
+    session.merge(event)
 
 
 def to_time(t):
@@ -65,9 +71,12 @@ def scrape_cluster(workspace, cluster_dict, session, api):
             "termination_reason"]["parameters"].get("username", None)
 
     session.merge(cluster)
+    log.debug("Started scraping events for cluster %s", cluster.cluster_name)
     events = api.cluster.get_events(cluster_id=cluster.cluster_id)
     for event in events["events"]:
         scrape_event(cluster, event, session, api)
+    log.debug("Finished scraping events for cluster %s. Events: %d",
+              cluster.cluster_name, len(events["events"]))
 
 
 def scrape_workspace(workspace, session):
