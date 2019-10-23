@@ -1,8 +1,8 @@
 from db import Cluster, Workspace, create_db, Base, engine_url
 from flask import Flask, render_template
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from scraping import scrape
+from sqlalchemy.orm import sessionmaker, scoped_session
+from scraping import scrape, start_scheduled_scraping
 import argparse
 import logging
 import configparser
@@ -18,7 +18,7 @@ Base.metadata.bind = engine
 
 
 def create_session():
-    DBSession = sessionmaker()
+    DBSession = scoped_session(sessionmaker())
     DBSession.bind = engine
     session = DBSession()
     return session
@@ -82,7 +82,7 @@ def view_clusters():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run', choices=[
-                        "create_db", "ui", "scrape"])
+                        "create_db", "server", "scrape", "ui"])
     parser.add_argument('-c', '--config', type=str,
                         help='path to config file to use', default="config.ini")
     args = parser.parse_args()
@@ -91,7 +91,10 @@ if __name__ == "__main__":
     config.read(args.config)
     log.info("Command: %s", command)
     log.debug("config path: %s", args.config)
-    if command == "ui":
+    if command == "server":
+        start_scheduled_scraping(config["scraper"].getfloat("interval"))
+        app.run(debug=config["web"].getboolean("development"))
+    elif command == "ui":
         app.run(debug=config["web"].getboolean("development"))
     elif command == "create_db":
         create_db()

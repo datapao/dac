@@ -4,8 +4,9 @@ from databricks_api import DatabricksAPI
 from db import Cluster, Workspace, Base, Event, Job, JobRun
 from db import engine_url
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 import datetime
+import threading
 import time
 
 log = logging.getLogger("dac-scraper")
@@ -178,13 +179,27 @@ def get_workspaces():
     ]
 
 
+def scraping_loop(interval: int):
+    while True:
+        scrape()
+        log.debug("Going to sleep for %d seconds", interval)
+        time.sleep(interval)
+
+
+def start_scheduled_scraping(interval: int) -> threading.Thread:
+    thread = threading.Thread(target=scraping_loop,
+                              name="scraping-loop-Thread", args=[interval])
+    thread.start()
+    return thread
+
+
 def scrape():
     log.info("Scraping started...")
     start_time = time.time()
 
     engine = create_engine(engine_url)
     Base.metadata.bind = engine
-    DBSession = sessionmaker(bind=engine)
+    DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
     session = DBSession()
 
     for workspace in get_workspaces():
