@@ -5,7 +5,7 @@
 <h1 class="title">Cluster {{ cluster.cluster_name }}</h1>
 <h1 class="subtitle">Cluster {{ cluster.state }}</h1>
 <section class="section">
-    <table class="table">ß
+    <table class="table">
         <tr>
             <th>Cloud provider</th>
             <td>{{cluster.workspace.type}}</td>
@@ -32,10 +32,13 @@
             <th>Created by</th>
             <td>{{cluster.creator_user_name}}</td>
         </tr>
+        <tr>
+            <th>Autotermination (min)</th>
+            <td>{{cluster.autotermination_minutes}}</td>
+        </tr>
 
     </table>
 </section>
-
 
 <section class="section">
     <div class="columns">

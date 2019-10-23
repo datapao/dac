@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, ForeignKey, Integer, String, BigInteger, DateTime, Boolean
+from sqlalchemy import Column, ForeignKey, Integer, String, BigInteger, DateTime, Boolean, JSON
 from sqlalchemy import create_engine
 from sqlalchemy.orm import relationship
 
@@ -35,6 +35,10 @@ class Cluster(Base):
     termination_reason_code = Column(String)
     termination_reason_inactivity_min = Column(String)
     termination_reason_username = Column(String)
+    default_tags = Column(JSON, nullable=False)
+    aws_attributes = Column(JSON)
+    spark_conf = Column(JSON)
+    spark_env_vars = Column(JSON)
 
 
 class Workspace(Base):

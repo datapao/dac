@@ -51,7 +51,11 @@ def scrape_cluster(workspace, cluster_dict, session, api):
         spark_context_id=cluster_dict["spark_context_id"],
         start_time=to_time(cluster_dict["start_time"]),
         terminated_time=to_time(cluster_dict.get("terminated_time", None)),
-        workspace_id=workspace.id
+        workspace_id=workspace.id,
+        default_tags=cluster_dict["default_tags"],
+        aws_attributes=cluster_dict.get("aws_attributes", None),
+        spark_conf=cluster_dict.get("spark_conf", None),
+        spark_env_vars=cluster_dict.get("spark_env_vars", None)
     )
     if "termination_reason" in cluster_dict:
         cluster.termination_reason_code = cluster_dict["termination_reason"]["code"]
