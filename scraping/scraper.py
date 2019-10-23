@@ -1,18 +1,14 @@
 import os
 import logging
 from databricks_api import DatabricksAPI
-from db import Cluster, Workspace, Base, Event, engine_url
+from db import Cluster, Workspace, Base, Event, Job, JobRun
+from db import engine_url
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import datetime
+import time
 
 log = logging.getLogger("dac-scraper")
-
-
-def write_to_file(cluster):
-    import json
-    with open("api-data.txt", "a") as f:
-        f.write(json.dumps(cluster) + "\n")
 
 
 def scrape_event(cluster, event_dict, session, api):
@@ -33,8 +29,8 @@ def to_time(t):
 
 
 def scrape_cluster(workspace, cluster_dict, session, api):
-    logging.debug("Scraping cluster: %s (%s)",
-                  cluster_dict["cluster_name"], cluster_dict["state"])
+    log.debug("Scraping cluster: %s (%s)",
+              cluster_dict["cluster_name"], cluster_dict["state"])
     cluster = Cluster(
         cluster_id=cluster_dict["cluster_id"],
         cluster_name=cluster_dict["cluster_name"],
@@ -65,10 +61,11 @@ def scrape_cluster(workspace, cluster_dict, session, api):
     )
     if "termination_reason" in cluster_dict:
         cluster.termination_reason_code = cluster_dict["termination_reason"]["code"]
-        cluster.termination_reason_inactivity_min = cluster_dict[
-            "termination_reason"]["parameters"].get("inactivity_duration_min", None)
-        cluster.termination_reason_username = cluster_dict[
-            "termination_reason"]["parameters"].get("username", None)
+        if "parameters" in cluster_dict["termination_reason"]:
+            cluster.termination_reason_inactivity_min = cluster_dict[
+                "termination_reason"]["parameters"].get("inactivity_duration_min", None)
+            cluster.termination_reason_username = cluster_dict[
+                "termination_reason"]["parameters"].get("username", None)
 
     session.merge(cluster)
     log.debug("Started scraping events for cluster %s", cluster.cluster_name)
@@ -79,15 +76,80 @@ def scrape_cluster(workspace, cluster_dict, session, api):
               cluster.cluster_name, len(events["events"]))
 
 
+def scrape_job_run(workspace, job_run_dict, session):
+    log.debug("Scraping job run in workspace: %s job run id: %s",
+              workspace.name, job_run_dict["run_id"])
+    job_run = JobRun(
+        job_id=job_run_dict["job_id"],
+        run_id=job_run_dict["run_id"],
+        number_in_job=job_run_dict["number_in_job"],
+        original_attempt_run_id=job_run_dict["original_attempt_run_id"],
+        cluster_spec=job_run_dict["cluster_spec"],
+        workspace_id=workspace.id,
+        cluster_instance_id=job_run_dict["cluster_instance"]["cluster_id"],
+        spark_context_id=job_run_dict["cluster_instance"]["spark_context_id"],
+        state_life_cycle_state=job_run_dict["state"]["life_cycle_state"],
+        state_result_state=job_run_dict["state"]["result_state"],
+        state_state_message=job_run_dict["state"]["state_message"],
+        task=job_run_dict["task"],
+        start_time=to_time(job_run_dict["start_time"]),
+        setup_duration=job_run_dict["setup_duration"],
+        execution_duration=job_run_dict["execution_duration"],
+        cleanup_duration=job_run_dict["cleanup_duration"],
+        trigger=job_run_dict["trigger"],
+        creator_user_name=job_run_dict["creator_user_name"],
+        run_name=job_run_dict["run_name"],
+        run_page_url=job_run_dict["run_page_url"],
+        run_type=job_run_dict["run_type"]
+    )
+    session.merge(job_run)
+
+
+def scrape_jobs(workspace, job_dict, session, api):
+    log.debug("Scraping job, id: %s", job_dict["job_id"])
+    job = Job(
+        job_id=job_dict["job_id"],
+        created_time=to_time(job_dict["created_time"]),
+        creator_user_name=job_dict["creator_user_name"],
+        name=job_dict["settings"]["name"],
+        workspace_id=workspace.id,
+        max_concurrent_runs=job_dict["settings"]["max_concurrent_runs"],
+        timeout_seconds=job_dict["settings"]["timeout_seconds"],
+        email_notifications=job_dict["settings"]["email_notifications"],
+        new_cluster=job_dict["settings"]["new_cluster"],
+        schedule_quartz_cron_expression=job_dict["settings"]["schedule"]["quartz_cron_expression"],
+        schedule_timezone_id=job_dict["settings"]["schedule"]["timezone_id"],
+        task_type="NOTEBOOK_TASK",
+        notebook_path=job_dict["settings"]["notebook_task"]["notebook_path"],
+        notebook_revision_timestamp=job_dict["settings"]["notebook_task"]["revision_timestamp"],
+    )
+    session.merge(job)
+    job_runs = api.jobs.list_runs()["runs"]
+    log.debug("Scraping job runs for job_id: %s", job_dict["job_id"])
+    for job_run in job_runs:
+        scrape_job_run(workspace, job_run, session)
+    log.debug("Finished job_run scraping for job_id: %s. Runs scraped: %d",
+              job_dict["job_id"], len(job_runs))
+
+
 def scrape_workspace(workspace, session):
-    logging.info("Scraping workspace %s", workspace.name)
+    log.info("Scraping workspace %s", workspace.name)
     session.merge(workspace)
 
     api = DatabricksAPI(host=workspace.url, token=workspace.token)
-    clusters = api.cluster.list_clusters()
 
+    log.info("Started scraping clusters in workspace %s.", workspace.name)
+    clusters = api.cluster.list_clusters()
     for cluster in clusters["clusters"]:
         scrape_cluster(workspace, cluster, session, api)
+    log.info("Finished scraping clusters in workspace %s.", workspace.name)
+
+    log.info("Started scraping jobs in workspace %s.", workspace.name)
+    jobs = api.jobs.list_jobs()
+    for job in jobs.get("jobs", []):
+        scrape_jobs(workspace, job, session, api)
+    log.info("Finished scraping jobs in workspace %s. Jobs scraped: %d",
+             workspace.name, len(jobs))
 
 
 def get_workspaces():
@@ -118,6 +180,7 @@ def get_workspaces():
 
 def scrape():
     log.info("Scraping started...")
+    start_time = time.time()
 
     engine = create_engine(engine_url)
     Base.metadata.bind = engine
@@ -128,4 +191,4 @@ def scrape():
         scrape_workspace(workspace, session)
 
     session.commit()
-    logging.info("Scraping done")
+    log.info("Scraping done. Duration: %.2fs", time.time() - start_time)

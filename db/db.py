@@ -79,6 +79,52 @@ class Event(Base):
         return patterns[self.type](self.details)
 
 
+class Job(Base):
+    __tablename__ = "jobs"
+    job_id = Column(BigInteger, primary_key=True)
+    created_time = Column(DateTime, primary_key=True)
+    creator_user_name = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    timeout_seconds = Column(Integer, nullable=False)
+    email_notifications = Column(JSON, nullable=False)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    workspace = relationship(Workspace)
+    new_cluster = Column(JSON)
+    schedule_quartz_cron_expression = Column(String)
+    schedule_timezone_id = Column(String)
+    task_type = Column(String)
+    notebook_path = Column(String)
+    notebook_revision_timestamp = Column(Integer)
+    max_concurrent_runs = Column(Integer)
+
+
+class JobRun(Base):
+    __tablename__ = "jobruns"
+    job_id = Column(BigInteger)
+    run_id = Column(BigInteger, primary_key=True)
+    number_in_job = Column(Integer)
+    original_attempt_run_id = Column(Integer)
+    workspace_id = Column(String, ForeignKey(
+        "workspaces.id"), primary_key=True)
+    workspace = relationship(Workspace)
+    cluster_spec = Column(JSON, nullable=False)
+    cluster_instance_id = Column(String, nullable=False)
+    spark_context_id = Column(BigInteger, nullable=False)
+    state_life_cycle_state = Column(String)
+    state_result_state = Column(String)
+    state_state_message = Column(String)
+    task = Column(JSON, nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    setup_duration = Column(Integer)
+    execution_duration = Column(Integer)
+    cleanup_duration = Column(Integer)
+    trigger = Column(String, nullable=False)
+    creator_user_name = Column(String, nullable=False)
+    run_name = Column(String, nullable=False)
+    run_page_url = Column(String)
+    run_type = Column(String, nullable=False)
+
+
 def create_db():
     engine = create_engine(engine_url)
     Base.metadata.create_all(engine)

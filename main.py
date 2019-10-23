@@ -9,7 +9,7 @@ import configparser
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=logformat)
-log = logging.getLogger("dac-ui")
+log = logging.getLogger("dac")
 logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 app = Flask(__name__)
