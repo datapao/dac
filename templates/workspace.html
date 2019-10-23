@@ -121,9 +121,9 @@
         <tbody>
             {%for cluster in workspace.clusters%}
             <tr>
-                <td><a href={{ url_for("view_cluster", cluster_id=cluster.id)}}>{{cluster.name}}</a></td>
+                <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id)}}>{{cluster.cluster_name}}</a></td>
                 <td>{{cluster.state}}</td>
-                <td>{{cluster.id}}</td>
+                <td>{{cluster.cluster_id}}</td>
                 <td><a href="/workspaces">{{cluster.workspace.id}}</a></td>
                 <td>{{cluster.driver_type}}</td>
                 <td>{{cluster.worker_type}}</td>

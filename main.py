@@ -1,73 +1,16 @@
-import os
 from db import Cluster, Workspace, create_db, Base, engine_url
-from databricks_api import DatabricksAPI
 from flask import Flask, render_template
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from scraping import scrape
 import argparse
 import logging
 import configparser
 
-logformat = "%(asctime)-15s %(name)-8s %(levelname)-8s %(message)s"
+logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=logformat)
 log = logging.getLogger("dac-ui")
-
-
-def scrape():
-    print("Scraping started...")
-    engine = create_engine(engine_url)
-    Base.metadata.bind = engine
-    DBSession = sessionmaker(bind=engine)
-    session = DBSession()
-
-    workspaces = [
-        Workspace(
-            url="dbc-b5882a77-2f55.cloud.databricks.com",
-            id="dbc-b5882a77-2f55",
-            type="AWS",
-            name="Datapao Main",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_AWS")
-        ),
-        Workspace(
-            url="westeurope.azuredatabricks.net/?o=1950971732059748",
-            id="1950971732059748",
-            type="AZURE",
-            name="Datapao Azure Main",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_AZURE")
-        ),
-        Workspace(
-            url="https://westeurope.azuredatabricks.net/?o=2381314298301659",
-            id="2381314298301659",
-            type="AZURE",
-            name="Lidl",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_LIDL")
-        )
-    ]
-    for workspace in workspaces:
-        session.merge(workspace)
-
-        api = DatabricksAPI(host=workspace.url, token=workspace.token)
-        clusters = api.cluster.list_clusters()
-        for c in clusters["clusters"]:
-            cluster = Cluster(
-                id=c["cluster_id"],
-                name=c["cluster_name"],
-                state=c["state"],
-                driver_type=c["driver_node_type_id"],
-                worker_type=c["node_type_id"],
-                num_workers=c["num_workers"],
-                spark_version=c["spark_version"],
-                creator_user_name=c["creator_user_name"],
-                workspace_id=workspace.id
-            )
-            cluster.workspace_id = workspace.id
-            session.merge(cluster)
-            events = api.cluster.get_events(cluster_id=cluster.id)
-            for event in events["events"]:
-                pass
-    session.commit()
-    print("Scraping done")
-
+logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 app = Flask(__name__)
 engine = create_engine(engine_url)
