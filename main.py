@@ -1,11 +1,12 @@
-from db import Cluster, Workspace, create_db, Base, engine_url
+from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
 from flask import Flask, render_template
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 from scraping import scrape, start_scheduled_scraping
 import argparse
 import logging
 import configparser
+from datetime import datetime
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=logformat)
@@ -78,6 +79,25 @@ def view_clusters():
         cluster.cost_per_hour = "$25.9"
     return render_template('clusters.html', clusters=clusters)
 
+
+@app.route('/scrape_runs')
+def view_scrape_runs():
+    session = create_session()
+    runs = session.query(ScraperRun).order_by(
+        desc(ScraperRun.start_time)).limit(15).all()
+    last_scrape = "no scrape run yet"
+    if len(runs) > 0:
+        last_scrape = datetime.now() - runs[0].end_time
+    return render_template('scrape_runs.html',
+                           runs=runs,
+                           last_scrape=last_scrape)
+
+
+def format_datetime(value):
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+app.jinja_env.filters['datetime'] = format_datetime
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

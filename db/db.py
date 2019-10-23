@@ -2,6 +2,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, ForeignKey, Integer, String, BigInteger, DateTime, Boolean, JSON
 from sqlalchemy import create_engine
 from sqlalchemy.orm import relationship
+from datetime import datetime
+from uuid import uuid4
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
@@ -123,6 +125,86 @@ class JobRun(Base):
     run_name = Column(String, nullable=False)
     run_page_url = Column(String)
     run_type = Column(String, nullable=False)
+
+
+class ScraperRun(Base):
+
+    SUCCESSFUL = "SUCCESSFUL"
+    FAILED = "FAILED"
+    IN_PROGRESS = "IN_PROGRESS"
+
+    __tablename__ = "screper-run"
+    scraper_run_id = Column(String, primary_key=True)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    status = Column(String, nullable=False)
+    num_workspaces = Column(Integer, nullable=False)
+    num_clusters = Column(Integer, nullable=False)
+    num_events = Column(Integer, nullable=False)
+    num_jobs = Column(Integer, nullable=False)
+    num_job_runs = Column(Integer, nullable=False)
+
+    def start(self):
+        self.start_time = datetime.now()
+        self.scraper_run_id = str(uuid4())
+        self.status = ScraperRun.IN_PROGRESS
+
+    def finish(self, status):
+        if self.start_time is None:
+            raise RuntimeError(
+                "ScraperRun that was not started cannot be finished")
+        self.end_time = datetime.now()
+        self.status = status
+
+    def duration(self):
+        return self.end_time - self.start_time
+
+    def duration_str(self):
+        return str(self.duration())
+
+    def __str__(self):
+        return "ScraperRun[id={}, status={}, duration={:.2f}s]" \
+            .format(self.scraper_run_id, self.status, self.duration())
+
+    def __repr__(self):
+        return self.__str__()
+
+    def merge(left: "ScraperRun", right: "ScraperRun") -> "ScraperRun":
+        start_time = None
+        if left.start_time is None:
+            start_time = right.start_time
+        elif right.start_time is None:
+            start_time = left.start_time
+        else:
+            start_time = left.start_time if left.start_time < right.start_time else right.start_time
+        end_time = None
+        if left.end_time is None:
+            end_time = right.end_time
+        elif right.end_time is None:
+            end_time = left.end_time
+        else:
+            end_time = left.end_time if left.end_time > right.end_time else right.end_time
+
+        return ScraperRun(
+            start_time=start_time,
+            end_time=end_time,
+            status=left.status if left.status == "FAILED" else right.status,
+            scraper_run_id=str(uuid4()),
+            num_workspaces=left.num_workspaces + right.num_workspaces,
+            num_clusters=left.num_clusters + right.num_clusters,
+            num_events=left.num_events + right.num_events,
+            num_jobs=left.num_jobs + right.num_jobs,
+            num_job_runs=left.num_job_runs + right.num_job_runs
+        )
+
+    def empty() -> "ScraperRun":
+        return ScraperRun(
+            num_workspaces=0,
+            num_clusters=0,
+            num_events=0,
+            num_jobs=0,
+            num_job_runs=0
+        )
 
 
 def create_db():
