@@ -5,7 +5,12 @@ from flask import Flask, render_template
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import argparse
+import logging
 import configparser
+
+logformat = "%(asctime)-15s %(name)-8s %(levelname)-8s %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=logformat)
+log = logging.getLogger("dac-ui")
 
 
 def scrape():
@@ -141,6 +146,8 @@ if __name__ == "__main__":
     command = args.command
     config = configparser.ConfigParser()
     config.read(args.config)
+    log.info("Command: %s", command)
+    log.debug("config path: %s", args.config)
     if command == "ui":
         app.run(debug=config["web"].getboolean("development"))
     elif command == "create_db":
