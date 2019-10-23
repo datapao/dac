@@ -39,12 +39,14 @@ def scrape_cluster(workspace, cluster_dict, session, api):
         num_workers=cluster_dict["num_workers"],
         spark_version=cluster_dict["spark_version"],
         creator_user_name=cluster_dict["creator_user_name"],
-        autotermination_minutes=cluster_dict["autotermination_minutes"],
-        cluster_source=cluster_dict["cluster_source"],
-        enable_elastic_disk=cluster_dict["enable_elastic_disk"],
+        autotermination_minutes=cluster_dict.get(
+            "autotermination_minutes", None),
+        cluster_source=cluster_dict.get("cluster_source", None),
+        enable_elastic_disk=cluster_dict.get("enable_elastic_disk", None),
         last_activity_time=to_time(
             cluster_dict.get("last_activity_time", None)),
-        last_state_loss_time=to_time(cluster_dict["last_state_loss_time"]),
+        last_state_loss_time=to_time(
+            cluster_dict.get("last_state_loss_time", None)),
         pinned_by_user_name=cluster_dict.get("pinned_by_user_name", None),
         spark_context_id=cluster_dict["spark_context_id"],
         start_time=to_time(cluster_dict["start_time"]),
