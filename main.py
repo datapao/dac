@@ -113,9 +113,9 @@ if __name__ == "__main__":
     log.debug("config path: %s", args.config)
     if command == "server":
         start_scheduled_scraping(config["scraper"].getfloat("interval"))
-        app.run(host="0.0.0.0", debug=config["web"].getboolean("development"))
+        app.run(host="0.0.0.0", port=80, debug=config["web"].getboolean("development"))
     elif command == "ui":
-        app.run(host="0.0.0.0", debug=config["web"].getboolean("development"))
+        app.run(host="0.0.0.0", port=80, debug=config["web"].getboolean("development"))
     elif command == "create_db":
         create_db()
     elif command == "scrape":
