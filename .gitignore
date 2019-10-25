@@ -4,3 +4,5 @@
 __pycache__*.db
 __pycache__
 *.db
+notebooks
+.ipynb_checkpoints
