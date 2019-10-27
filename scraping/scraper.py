@@ -149,7 +149,7 @@ def scrape_workspace(workspace, session):
 
     log.info("Started scraping clusters in workspace %s.", workspace.name)
     clusters = api.cluster.list_clusters()
-    for cluster in clusters["clusters"]:
+    for cluster in clusters.get("clusters", []):
         scrape_cluster(workspace, cluster, session, api, result)
 
     log.info("Finished scraping clusters in workspace %s.", workspace.name)
