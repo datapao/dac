@@ -99,10 +99,11 @@ def format_datetime(value):
 
 app.jinja_env.filters['datetime'] = format_datetime
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run', choices=[
-                        "create_db", "server", "scrape", "ui"])
+                        "create_db", "scrape", "scrape_once"])
     parser.add_argument('-c', '--config', type=str,
                         help='path to config file to use', default="config.ini")
     args = parser.parse_args()
@@ -111,12 +112,10 @@ if __name__ == "__main__":
     config.read(args.config)
     log.info("Command: %s", command)
     log.debug("config path: %s", args.config)
-    if command == "server":
+
+    if command == "scrape":
         start_scheduled_scraping(config["scraper"].getfloat("interval"))
-        app.run(debug=config["web"].getboolean("development"))
-    elif command == "ui":
-        app.run(debug=config["web"].getboolean("development"))
     elif command == "create_db":
         create_db()
-    elif command == "scrape":
+    elif command == "scrape_once":
         scrape()
