@@ -25,6 +25,7 @@ If you don't have the .env, create it::
 export DATABRICKS_TOKEN_MAIN_AWS=**********
 export DATABRICKS_TOKEN_MAIN_AZURE==**********
 export DATABRICKS_TOKEN_MAIN_LIDL==**********
+
 export FLASK_APP=main.py
 export FLASK_ENV=development
 ```
@@ -36,8 +37,10 @@ rm -f dac.db && python main.py create_db && python main.py scrape
 
 5) Start the server:
 ```
-python main.py ui
+flask run
 ```
+
+The UI and the background (`scraper` command) scraper has to be run seperately. This is due to flask running the script twice which results two background thread started.
 
 # Technology
 - Python 3+
