@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
-from db import Cluster, Event
+from db import Base, Cluster, Event
 
 
 log = logging.getLogger("dac-parser")
@@ -93,21 +93,21 @@ class EventParser:
     }
     instance_type_regex = re.compile(r'([a-z]\d[a-z]?.[\d]*[x]?large)')
 
-    def __init__(self, instance_types):
+    def __init__(self, instance_types: pd.DataFrame) -> None:
         self.instance_type_map = instance_types
 
-    def parse(self, events, clusters):
+    def parse(self, events: list, clusters: dict) -> pd.DataFrame:
         timeline = self.process_events(events)
         result = self.process_timelines(timeline, clusters)
         return result
 
-    def process_events(self, events):
+    def process_events(self, events: list) -> list:
         timeline = []
         for event in events:
             timeline.append(self.process_event(event))
         return timeline
 
-    def process_event(self, event):
+    def process_event(self, event: dict) -> dict:
         etype = event.get('type')
         if etype not in self.events:
             raise ValueError(f'Unkown event: {event}\n'
@@ -131,7 +131,9 @@ class EventParser:
                 'worker_type': worker_type,
                 'num_workers': num_workers}
 
-    def process_timelines(self, raw_timeline, clusters):
+    def process_timelines(self,
+                          raw_timeline: list,
+                          clusters: dict) -> pd.DataFrame:
         timelines = {}
         for event in raw_timeline:
             cluster = event['cluster_id']
@@ -146,7 +148,9 @@ class EventParser:
 
         return pd.concat(dfs)
 
-    def process_timeline(self, timeline, cluster_name):
+    def process_timeline(self,
+                         timeline: list,
+                         cluster_name: str) -> pd.DataFrame:
         # Empty timeline
         if not len(timeline):
             return pd.DataFrame()
@@ -166,19 +170,21 @@ class EventParser:
 
         rows = []
         status = {
+            'timestamp': first['timestamp'],
             'cluster_id': first['cluster_id'],
             'state': 'UNKNOWN',
             'user': 'UNKONWN',
             'driver_type': first['driver_type'],
             'worker_type': first['worker_type'],
-            'num_workers': 0
+            'num_workers': 0,
+            'interval': 0
         }
         for frm_event, to_event in zip(frm, to):
             delta = to_event['timestamp'] - frm_event['timestamp']
-            delta = timedelta(milliseconds=delta).seconds / 3600
+            delta = delta.seconds / 3600
 
             row = status.copy()
-            row['time'] = delta
+            row['interval'] = delta
             rows.append(row)
 
             status = self.get_new_status(status, to_event)
@@ -189,10 +195,10 @@ class EventParser:
 
         return df
 
-    def get_new_state(self, current_state, event):
+    def get_new_state(self, current_state: dict, event: dict) -> str:
         return self.transitions.get(event, current_state)
 
-    def get_new_status(self, actual, event):
+    def get_new_status(self, actual: dict, event: dict) -> dict:
         """
         Update status with the new values from the event.
         If a new event doesn't have a new value, use the actual values
@@ -200,13 +206,14 @@ class EventParser:
         status = {}
         for key, value in actual.items():
             if key == 'state':
-                status[key] = self.get_new_state(actual['state'], event['event'])
+                status[key] = self.get_new_state(actual['state'],
+                                                 event['event'])
             else:
                 status[key] = event.get(key, value) or actual[key]
 
         return status
 
-    def determine_cluster_type(self, cluster_name):
+    def determine_cluster_type(self, cluster_name: str) -> str:
         if cluster_name.startswith('job-'):
             return 'job'
 
@@ -215,7 +222,9 @@ class EventParser:
 
         return 'analysis'
 
-    def calculate_dbu(self, df, cluster_type='analysis'):
+    def calculate_dbu(self,
+                      df: pd.DataFrame,
+                      cluster_type: str = 'analysis') -> pd.Series:
         if cluster_type not in ['light', 'job', 'analysis']:
             raise ValueError(f'Unrecognized cluster type {cluster_type} '
                              f'during DBU computation.')
@@ -244,13 +253,15 @@ class EventParser:
                    on='worker_type')
         )
 
+        # TODO: Decide wether we need to set the driver count to 0 when
+        # there are no workers or not?
         return (joined[f'driver_{cluster_type}']
-                * (joined['num_workers'] > 0).astype('int')
+                # * (joined['num_workers'] > 0).astype('int')
                 + joined[f'worker_{cluster_type}']
                 * joined['num_workers'])
 
 
-def query_instance_types():
+def query_instance_types() -> pd.DataFrame:
     regex = r'([a-z]\d[a-z]?.[\d]*[x]?large)'
 
     url = "https://databricks.com/product/aws-pricing/instance-types"
@@ -265,16 +276,15 @@ def query_events(session):
     return [event.__dict__ for event in session.query(Event).all()]
 
 
-def query_cluster_names(session):
+def query_cluster_names(session: "Session") -> dict:
     clusters = (session
-                .query(Cluster)
-                .select('cluster_id', 'cluster_name')
+                .query(Cluster.cluster_id, Cluster.cluster_name)
                 .distinct()
                 .all())
     return {cluster.cluster_id: cluster.cluster_name for cluster in clusters}
 
 
-def parse():
+def parse() -> pd.DataFrame:
     log.info("Parsing started...")
     start_time = time.time()
 
@@ -289,7 +299,21 @@ def parse():
 
     parser = EventParser(instance_types)
 
-    result = parser.parse(events, clusters)
+    result = parser.parse(events, cluster_names)
     log.info(f"Parsing done. Duration: {time.time() - start_time:.2f}")
 
     return result
+
+
+def export(df: pd.DataFrame) -> None:
+    log.info('Exporting to db...')
+    start_time = time.time()
+
+    engine = create_engine(engine_url)
+    Base.metadata.bind = engine
+    DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
+    session = DBSession()
+
+    df.to_sql('cluster_states', con=engine, index=False, if_exists='replace')
+
+    log.info(f'Export completed. Duration: {time.time() - start_time:.2f}')
