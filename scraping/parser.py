@@ -6,9 +6,6 @@ from datetime import timedelta
 
 import pandas as pd
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
-
 from db import engine_url
 from db import Base, Cluster, Event
 
@@ -141,6 +138,8 @@ class EventParser:
                 timelines[cluster] = []
             timelines[cluster].append(event)
 
+        log.debug(f" timeline cnt: {len(timelines)}, keys: {timelines.keys()}")
+
         dfs = []
         for cluster_id, timeline in timelines.items():
             cluster_name = clusters.get(cluster_id, 'UNKNOWN')
@@ -168,6 +167,7 @@ class EventParser:
         frm = timeline[:-1]
         to = timeline[1:]
 
+        # TODO: fix col names
         rows = []
         status = {
             'timestamp': first['timestamp'],
@@ -181,6 +181,7 @@ class EventParser:
         }
         for frm_event, to_event in zip(frm, to):
             delta = to_event['timestamp'] - frm_event['timestamp']
+            delta = timedelta(milliseconds=delta)
             delta = delta.seconds / 3600
 
             row = status.copy()
@@ -262,6 +263,7 @@ class EventParser:
 
 
 def query_instance_types() -> pd.DataFrame:
+    # TODO: save locally and check if we can parse the actual page
     regex = r'([a-z]\d[a-z]?.[\d]*[x]?large)'
 
     url = "https://databricks.com/product/aws-pricing/instance-types"
@@ -284,36 +286,19 @@ def query_cluster_names(session: "Session") -> dict:
     return {cluster.cluster_id: cluster.cluster_name for cluster in clusters}
 
 
-def parse() -> pd.DataFrame:
+def parse_events(session: "Session", events: list) -> pd.DataFrame:
     log.info("Parsing started...")
     start_time = time.time()
 
-    engine = create_engine(engine_url)
-    Base.metadata.bind = engine
-    DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
-    session = DBSession()
-
-    events = query_events(session)
+    # Querying required info from db / web: events = query_events(session)
     cluster_names = query_cluster_names(session)
     instance_types = query_instance_types()
 
+    log.debug(f"events len: {len(events)}, sample: {events[0]}")
+
+    # Parsing
     parser = EventParser(instance_types)
-
     result = parser.parse(events, cluster_names)
+
     log.info(f"Parsing done. Duration: {time.time() - start_time:.2f}")
-
     return result
-
-
-def export(df: pd.DataFrame) -> None:
-    log.info('Exporting to db...')
-    start_time = time.time()
-
-    engine = create_engine(engine_url)
-    Base.metadata.bind = engine
-    DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
-    session = DBSession()
-
-    df.to_sql('cluster_states', con=engine, index=False, if_exists='replace')
-
-    log.info(f'Export completed. Duration: {time.time() - start_time:.2f}')

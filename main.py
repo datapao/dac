@@ -1,18 +1,22 @@
-from scraping.parser import parse, export
-from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
+import argparse
+import configparser
+import logging
+
+from datetime import datetime
+
 from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
+
+from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
 from scraping import scrape, start_scheduled_scraping
-import argparse
-import logging
-import configparser
-from datetime import datetime
+
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=logformat)
 log = logging.getLogger("dac")
 logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
+
 
 app = Flask(__name__)
 engine = create_engine(engine_url)
@@ -121,6 +125,3 @@ if __name__ == "__main__":
         create_db()
     elif command == "scrape":
         scrape()
-    elif command == "parse":
-        parsed_events = parse()
-        export(parsed_events)

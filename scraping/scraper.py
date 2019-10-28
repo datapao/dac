@@ -1,14 +1,21 @@
-import os
+import datetime
+import functools
 import logging
+import os
+import threading
+import time
+
+import pandas as pd
+
 from databricks_api import DatabricksAPI
-from db import Cluster, Workspace, Base, Event, Job, JobRun, ScraperRun
-from db import engine_url
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
-import datetime
-import threading
-import functools
-import time
+
+from db import engine_url
+from db import Base, Cluster, Workspace, Event, Job, JobRun
+from db import ScraperRun, ClusterStates
+from scraping.parser import parse_events
+
 
 log = logging.getLogger("dac-scraper")
 
@@ -24,9 +31,15 @@ def scrape_event(cluster, event_dict, session, api, result):
     result.num_events += 1
 
 
+def upsert_states(session: "Session", df: pd.DataFrame) -> int:
+    for counter, row in enumerate(df.to_dict(orient='records')):
+        session.merge(ClusterStates(**row))
+    return counter
+
+
 def to_time(t):
     if t is not None:
-        return datetime.datetime.utcfromtimestamp(t/1000)
+        return datetime.datetime.utcfromtimestamp(t / 1000)
     else:
         return None
 
@@ -76,8 +89,22 @@ def scrape_cluster(workspace, cluster_dict, session, api, result):
     events = api.cluster.get_events(cluster_id=cluster.cluster_id)
     for event in events["events"]:
         scrape_event(cluster, event, session, api, result)
+
     log.debug("Finished scraping events for cluster %s. Events: %d",
               cluster.cluster_name, len(events["events"]))
+
+    # CLUSTER STATE PARSING
+    # TODO: Events are not commited yet, so we cannot parse them.
+    # Possible workarounds:
+    # - move this functionality after events are in the db.
+    #   problem: requires two commits
+    # - change ClusterState to use raw events instead of querying it from the
+    #   db. affected functions: parser.py/parse_events, parser.py/query_events
+    parsed_events = parse_events(session, events.get('events', []))
+    affected_rows = upsert_states(session, parsed_events)
+
+    log.debug(f"Finished parsing events for cluster {cluster.cluster_name}. "
+              f"Affected rows: {affected_rows}")
 
 
 def scrape_job_run(workspace, job_run_dict, session, result):
@@ -149,7 +176,7 @@ def scrape_workspace(workspace, session):
 
     log.info("Started scraping clusters in workspace %s.", workspace.name)
     clusters = api.cluster.list_clusters()
-    for cluster in clusters["clusters"]:
+    for cluster in clusters.get("clusters", []):
         scrape_cluster(workspace, cluster, session, api, result)
 
     log.info("Finished scraping clusters in workspace %s.", workspace.name)
