@@ -1,3 +1,4 @@
+from scraping.parser import parse, export
 from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
 from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
@@ -102,7 +103,7 @@ app.jinja_env.filters['datetime'] = format_datetime
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run', choices=[
-                        "create_db", "server", "scrape", "ui"])
+                        "create_db", "server", "scrape", "ui", "parse"])
     parser.add_argument('-c', '--config', type=str,
                         help='path to config file to use', default="config.ini")
     args = parser.parse_args()
@@ -120,3 +121,6 @@ if __name__ == "__main__":
         create_db()
     elif command == "scrape":
         scrape()
+    elif command == "parse":
+        parsed_events = parse()
+        export(parsed_events)
