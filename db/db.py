@@ -217,11 +217,13 @@ class ClusterStates(Base):
     # should be foreign key to users table
     user_id = Column(String, primary_key=True)
     timestamp = Column(DateTime, primary_key=True)
-    state = Column(String, nullable=False)
+    state = Column(String, primary_key=True)
     driver_type = Column(String, nullable=False)
     worker_type = Column(String, nullable=False)
     num_workers = Column(Integer, nullable=False)
-    dbu = Column(Float, nullable=False)
+    # TODO: set to not nullable once proper instance
+    # type scraping is implemented.
+    dbu = Column(Float, nullable=True)
     interval = Column(Float, nullable=False)
 
 

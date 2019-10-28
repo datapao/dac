@@ -33,6 +33,7 @@ def scrape_event(cluster, event_dict, session, api, result):
 
 def upsert_states(session: "Session", df: pd.DataFrame) -> int:
     for counter, row in enumerate(df.to_dict(orient='records')):
+        row['timestamp'] = pd.to_datetime(row['timestamp'], unit='ms')
         session.merge(ClusterStates(**row))
     return counter
 
@@ -100,6 +101,7 @@ def scrape_cluster(workspace, cluster_dict, session, api, result):
     #   problem: requires two commits
     # - change ClusterState to use raw events instead of querying it from the
     #   db. affected functions: parser.py/parse_events, parser.py/query_events
+    #   this option is implemented currently, we should consider other options.
     parsed_events = parse_events(session, events.get('events', []))
     affected_rows = upsert_states(session, parsed_events)
 

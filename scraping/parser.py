@@ -138,8 +138,6 @@ class EventParser:
                 timelines[cluster] = []
             timelines[cluster].append(event)
 
-        log.debug(f" timeline cnt: {len(timelines)}, keys: {timelines.keys()}")
-
         dfs = []
         for cluster_id, timeline in timelines.items():
             cluster_name = clusters.get(cluster_id, 'UNKNOWN')
@@ -167,13 +165,12 @@ class EventParser:
         frm = timeline[:-1]
         to = timeline[1:]
 
-        # TODO: fix col names
         rows = []
         status = {
             'timestamp': first['timestamp'],
             'cluster_id': first['cluster_id'],
             'state': 'UNKNOWN',
-            'user': 'UNKONWN',
+            'user_id': 'UNKONWN',
             'driver_type': first['driver_type'],
             'worker_type': first['worker_type'],
             'num_workers': 0,
@@ -263,7 +260,9 @@ class EventParser:
 
 
 def query_instance_types() -> pd.DataFrame:
-    # TODO: save locally and check if we can parse the actual page
+    # TODO 1: save locally and check if we can parse the actual page
+    # TODO 2: parse azure and databricks specific machines as well
+    # (eg. Standard_DS3_v2) - related todo in db/db.py:224
     regex = r'([a-z]\d[a-z]?.[\d]*[x]?large)'
 
     url = "https://databricks.com/product/aws-pricing/instance-types"
@@ -290,11 +289,10 @@ def parse_events(session: "Session", events: list) -> pd.DataFrame:
     log.info("Parsing started...")
     start_time = time.time()
 
-    # Querying required info from db / web: events = query_events(session)
+    # Querying required info from db / web
+    # events = query_events(session)  # related todo in scraping/scraper.py:102
     cluster_names = query_cluster_names(session)
     instance_types = query_instance_types()
-
-    log.debug(f"events len: {len(events)}, sample: {events[0]}")
 
     # Parsing
     parser = EventParser(instance_types)
