@@ -1,9 +1,12 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, ForeignKey, Integer, String, BigInteger, DateTime, Boolean, JSON
-from sqlalchemy import create_engine
-from sqlalchemy.orm import relationship
-from datetime import datetime
 from uuid import uuid4
+from datetime import datetime
+
+from sqlalchemy import create_engine
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy import String, Integer, BigInteger, Float
+from sqlalchemy import DateTime, Boolean, JSON
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
@@ -205,6 +208,21 @@ class ScraperRun(Base):
             num_jobs=0,
             num_job_runs=0
         )
+
+
+class ClusterStates(Base):
+    __tablename__ = "cluster_states"
+    cluster_id = Column(String, ForeignKey(
+        "clusters.cluster_id"), primary_key=True)
+    # should be foreign key to users table
+    user_id = Column(String, primary_key=True)
+    timestamp = Column(DateTime, primary_key=True)
+    state = Column(String, nullable=False)
+    driver_type = Column(String, nullable=False)
+    worker_type = Column(String, nullable=False)
+    num_workers = Column(Integer, nullable=False)
+    dbu = Column(Float, nullable=False)
+    interval = Column(Float, nullable=False)
 
 
 def create_db():
