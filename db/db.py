@@ -102,7 +102,7 @@ class Job(Base):
 
 class JobRun(Base):
     __tablename__ = "jobruns"
-    job_id = Column(BigInteger)
+    job_id = Column(BigInteger, primary_key=True)
     run_id = Column(BigInteger, primary_key=True)
     number_in_job = Column(Integer)
     original_attempt_run_id = Column(Integer)

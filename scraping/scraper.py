@@ -81,8 +81,8 @@ def scrape_cluster(workspace, cluster_dict, session, api, result):
 
 
 def scrape_job_run(workspace, job_run_dict, session, result):
-    log.debug("Scraping job run in workspace: %s job run id: %s",
-              workspace.name, job_run_dict["run_id"])
+    log.debug("Scraping job run in workspace: %s job (%s) run id: %s",
+              workspace.name, job_run_dict["job_id"], job_run_dict["run_id"])
     job_run = JobRun(
         job_id=job_run_dict["job_id"],
         run_id=job_run_dict["run_id"],
@@ -122,15 +122,16 @@ def scrape_jobs(workspace, job_dict, session, api, result):
         timeout_seconds=job_dict["settings"]["timeout_seconds"],
         email_notifications=job_dict["settings"]["email_notifications"],
         new_cluster=job_dict["settings"]["new_cluster"],
-        schedule_quartz_cron_expression=job_dict["settings"]["schedule"]["quartz_cron_expression"],
-        schedule_timezone_id=job_dict["settings"]["schedule"]["timezone_id"],
+        schedule_quartz_cron_expression=job_dict["settings"].get("schedule", {}).get("quartz_cron_expression", None),
+        schedule_timezone_id=job_dict["settings"].get("schedule", {}).get("timezone_id", None),
         task_type="NOTEBOOK_TASK",
         notebook_path=job_dict["settings"]["notebook_task"]["notebook_path"],
         notebook_revision_timestamp=job_dict["settings"]["notebook_task"]["revision_timestamp"],
     )
     session.merge(job)
     result.num_jobs += 1
-    job_runs = api.jobs.list_runs()["runs"]
+    job_runs_response = api.jobs.list_runs(job_id=job_dict["job_id"], limit=120)
+    job_runs = job_runs_response.get("runs", [])
     log.debug("Scraping job runs for job_id: %s", job_dict["job_id"])
     for job_run in job_runs:
         scrape_job_run(workspace, job_run, session, result)
@@ -186,6 +187,13 @@ def get_workspaces():
             type="AZURE",
             name="Lidl",
             token=os.getenv("DATABRICKS_TOKEN_MAIN_LIDL")
+        ),
+        Workspace(
+            url="westeurope.azuredatabricks.net/?o=7370856330227591",
+            id="7370856330227591",
+            type="AZURE",
+            name="Richter",
+            token=os.getenv("DATABRICKS_TOKEN_MAIN_RICHTER")
         )
     ]
 
