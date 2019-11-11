@@ -36,7 +36,7 @@ class Cluster(Base):
     spark_context_id = Column(BigInteger, nullable=False)
     spark_version = Column(String)
     start_time = Column(DateTime, nullable=False)
-    terminated_time = Column(DateTime, nullable=False)
+    terminated_time = Column(DateTime)
     termination_reason_code = Column(String)
     termination_reason_inactivity_min = Column(String)
     termination_reason_username = Column(String)
@@ -81,6 +81,8 @@ class Event(Base):
             "STARTING": lambda x: "Cluster is started by {user}".format(**x),
             "CREATING": lambda x: "Cluster is created by: {user}".format(**x)
         }
+        if self.type not in patterns:
+            return self.details
         return patterns[self.type](self.details)
 
 
@@ -105,7 +107,7 @@ class Job(Base):
 
 class JobRun(Base):
     __tablename__ = "jobruns"
-    job_id = Column(BigInteger)
+    job_id = Column(BigInteger, primary_key=True)
     run_id = Column(BigInteger, primary_key=True)
     number_in_job = Column(Integer)
     original_attempt_run_id = Column(Integer)
