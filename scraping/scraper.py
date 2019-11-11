@@ -192,7 +192,7 @@ def get_workspaces():
             url="westeurope.azuredatabricks.net/?o=7370856330227591",
             id="7370856330227591",
             type="AZURE",
-            name="Richter",
+            name="RTS",
             token=os.getenv("DATABRICKS_TOKEN_MAIN_RICHTER")
         )
     ]
