@@ -9,7 +9,7 @@ from sqlalchemy import DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
-import pandas
+import pandas as pd
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
@@ -54,7 +54,8 @@ class Cluster(Base):
         return [e for e in self.events if e.type not in types]
 
     def state_df(self):
-        df = pandas.DataFrame.from_records([s.to_dict() for s in self.cluster_states])
+        df = pd.DataFrame.from_records(
+            [s.to_dict() for s in self.cluster_states])
         df["interval_dbu"] = df["dbu"] * df["interval"]
         return df
 
@@ -71,6 +72,19 @@ class Workspace(Base):
 
     def active_clusters(self):
         return [c for c in self.clusters if c.state in ["RUNNING", "PENDING"]]
+
+    def state_df(self):
+        if not self.clusters:
+            return None
+
+        states = [
+            [states.to_dict() for states in c.cluster_states] for c in self.clusters
+        ]
+
+        states_df = [pd.DataFrame.from_records(s) for s in states]
+        df = pd.concat(states_df)
+        df["interval_dbu"] = df["dbu"] * df["interval"]
+        return df
 
 
 class Event(Base):
@@ -246,7 +260,7 @@ class ClusterStates(Base):
 
     def to_dict(self):
         attributes = ["user_id", "cluster_id", "timestamp", "state",
-                    "driver_type", "worker_type", "num_workers", "dbu", "interval"]
+                      "driver_type", "worker_type", "num_workers", "dbu", "interval"]
         return {attr: getattr(self, attr) for attr in attributes}
 
 

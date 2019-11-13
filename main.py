@@ -36,7 +36,7 @@ def view_dashboard():
     data = {
         "clusters": 45,
         "workspaces": 3,
-        "daily_dbu": 56.214,
+        "daily_dbu": 56.214,Ï
         "daily_vm": 433.963
     }
     return render_template('dashboard.html', data=data)
@@ -47,7 +47,26 @@ def view_workspace(workspace_id):
     session = create_session()
     workspace = session.query(Workspace).filter(
         Workspace.id == workspace_id).one()
-    return render_template('workspace.html', workspace=workspace)
+    df = workspace.state_df()
+
+    if df is not None and not df.empty:
+        cost_summary, time_stats = aggregate_for_entity(df)
+        cost_summary_dict = cost_summary.to_dict()
+        time_stats_dict = time_stats.to_dict("records")
+    else:
+        cost_summary_dict = {
+            "interval": 0.0,
+            "interval_dbu": 0.0,
+            "weekly_interval_sum": 0.0,
+            "weekly_interval_dbu_sum": 0.0,
+        }
+        time_stats_dict = {}
+
+
+    return render_template('workspace.html',
+                           workspace=workspace,
+                           cost=cost_summary_dict,
+                           time_stats=time_stats_dict)
 
 
 @app.route('/workspaces')
@@ -67,12 +86,7 @@ def view_users():
     return render_template('users.html')
 
 
-@app.route('/clusters/<string:cluster_id>')
-def view_cluster(cluster_id):
-    session = create_session()
-    cluster = session.query(Cluster).filter(
-        Cluster.cluster_id == cluster_id).one()
-    states = cluster.state_df()
+def aggregate_for_entity(states: pd.DataFrame):
     states["worker_hours"] = states["interval"] * states["num_workers"]
     states.fillna(0, inplace=True)
 
@@ -88,7 +102,8 @@ def view_cluster(cluster_id):
         "num_workers": ["min", "max", "median"],
         "worker_hours": "sum"
     })
-    full_index = pd.date_range(datetime.today()-timedelta(days=30), datetime.today(), freq="1D", normalize=True)
+    full_index = pd.date_range(datetime.today(
+    )-timedelta(days=30), datetime.today(), freq="1D", normalize=True)
     time_stats = time_stats.reindex(full_index)
     time_stats.fillna(0, inplace=True)
     time_stats.columns = ['_'.join(col) for col in time_stats.columns.values]
@@ -97,11 +112,24 @@ def view_cluster(cluster_id):
         "interval_dbu_sum": "sum",
         "interval_sum": "sum"
     })
-    weekly_cost_stats.index = [f"weekly_{p}" for p in weekly_cost_stats.index.values]
+    weekly_cost_stats.index = [
+        f"weekly_{p}" for p in weekly_cost_stats.index.values]
     cost_summary = pd.concat([cost_summary, weekly_cost_stats])
-    
+
     time_stats.index = time_stats.index.format()
     time_stats["ts"] = time_stats.index
+    return cost_summary, time_stats
+
+
+@app.route('/clusters/<string:cluster_id>')
+def view_cluster(cluster_id):
+    session = create_session()
+    cluster = session.query(Cluster).filter(
+        Cluster.cluster_id == cluster_id).one()
+    states = cluster.state_df()
+
+    cost_summary, time_stats = aggregate_for_entity(states)
+
     return render_template('cluster.html',
                            cluster=cluster,
                            cost=cost_summary.to_dict(),
