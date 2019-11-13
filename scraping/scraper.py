@@ -67,7 +67,7 @@ def scrape_cluster(workspace, cluster_dict, session, api, result):
         last_state_loss_time=to_time(
             cluster_dict.get("last_state_loss_time", None)),
         pinned_by_user_name=cluster_dict.get("pinned_by_user_name", None),
-        spark_context_id=cluster_dict["spark_context_id"],
+        spark_context_id=cluster_dict.get("spark_context_id", None),
         start_time=to_time(cluster_dict["start_time"]),
         terminated_time=to_time(cluster_dict.get("terminated_time", None)),
         workspace_id=workspace.id,
@@ -120,7 +120,7 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         cluster_spec=job_run_dict["cluster_spec"],
         workspace_id=workspace.id,
         cluster_instance_id=job_run_dict["cluster_instance"]["cluster_id"],
-        spark_context_id=job_run_dict["cluster_instance"]["spark_context_id"],
+        spark_context_id=job_run_dict["cluster_instance"].get("spark_context_id", None),
         state_life_cycle_state=job_run_dict["state"]["life_cycle_state"],
         state_result_state=job_run_dict["state"]["result_state"],
         state_state_message=job_run_dict["state"]["state_message"],
@@ -151,15 +151,20 @@ def scrape_jobs(workspace, job_dict, session, api, result):
         timeout_seconds=job_dict["settings"]["timeout_seconds"],
         email_notifications=job_dict["settings"]["email_notifications"],
         new_cluster=job_dict["settings"]["new_cluster"],
-        schedule_quartz_cron_expression=job_dict["settings"].get("schedule", {}).get("quartz_cron_expression", None),
-        schedule_timezone_id=job_dict["settings"].get("schedule", {}).get("timezone_id", None),
+        schedule_quartz_cron_expression=job_dict["settings"].get(
+            "schedule", {}).get("quartz_cron_expression", None),
+        schedule_timezone_id=job_dict["settings"].get(
+            "schedule", {}).get("timezone_id", None),
         task_type="NOTEBOOK_TASK",
-        notebook_path=job_dict["settings"]["notebook_task"]["notebook_path"],
-        notebook_revision_timestamp=job_dict["settings"]["notebook_task"]["revision_timestamp"],
+        notebook_path=job_dict["settings"].get(
+            "notebook_task", {}).get("notebook_path", None),
+        notebook_revision_timestamp=job_dict["settings"].get(
+            "notebook_task", {}).get("revision_timestamp", None),
     )
     session.merge(job)
     result.num_jobs += 1
-    job_runs_response = api.jobs.list_runs(job_id=job_dict["job_id"], limit=120)
+    job_runs_response = api.jobs.list_runs(
+        job_id=job_dict["job_id"], limit=120)
     job_runs = job_runs_response.get("runs", [])
     log.debug("Scraping job runs for job_id: %s", job_dict["job_id"])
     for job_run in job_runs:
@@ -216,13 +221,6 @@ def get_workspaces():
             type="AZURE",
             name="Lidl",
             token=os.getenv("DATABRICKS_TOKEN_MAIN_LIDL")
-        ),
-        Workspace(
-            url="westeurope.azuredatabricks.net/?o=7370856330227591",
-            id="7370856330227591",
-            type="AZURE",
-            name="RTS",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_RICHTER")
         )
     ]
 

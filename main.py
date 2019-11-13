@@ -2,7 +2,7 @@ import argparse
 import configparser
 import logging
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
 from scraping import scrape, start_scheduled_scraping
+import pandas as pd
 
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
@@ -71,7 +72,40 @@ def view_cluster(cluster_id):
     session = create_session()
     cluster = session.query(Cluster).filter(
         Cluster.cluster_id == cluster_id).one()
-    return render_template('cluster.html', cluster=cluster)
+    states = cluster.state_df()
+    states["worker_hours"] = states["interval"] * states["num_workers"]
+    states.fillna(0, inplace=True)
+
+    cost_summary = states.agg({
+        "interval_dbu": "sum",
+        "interval": "sum"
+    })
+
+    time_stats = states.groupby(pd.Grouper(key="timestamp", freq="1D", label="right")).agg({
+        "dbu": "max",
+        "interval": "sum",
+        "interval_dbu": "sum",
+        "num_workers": ["min", "max", "median"],
+        "worker_hours": "sum"
+    })
+    full_index = pd.date_range(datetime.today()-timedelta(days=30), datetime.today(), freq="1D", normalize=True)
+    time_stats = time_stats.reindex(full_index)
+    time_stats.fillna(0, inplace=True)
+    time_stats.columns = ['_'.join(col) for col in time_stats.columns.values]
+
+    weekly_cost_stats = time_stats[time_stats.index >= datetime.today() - timedelta(days=7)].agg({
+        "interval_dbu_sum": "sum",
+        "interval_sum": "sum"
+    })
+    weekly_cost_stats.index = [f"weekly_{p}" for p in weekly_cost_stats.index.values]
+    cost_summary = pd.concat([cost_summary, weekly_cost_stats])
+    
+    time_stats.index = time_stats.index.format()
+    time_stats["ts"] = time_stats.index
+    return render_template('cluster.html',
+                           cluster=cluster,
+                           cost=cost_summary.to_dict(),
+                           time_stats=time_stats.to_dict("records"))
 
 
 @app.route('/clusters')

@@ -4,3 +4,5 @@ databricks-api==0.3.0
 pycodestyle==2.5.0
 pandas==0.25.2
 lxml==4.4.1
+html5lib
+BeautifulSoup4

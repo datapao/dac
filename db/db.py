@@ -1,5 +1,6 @@
 from uuid import uuid4
 from datetime import datetime
+from collections import defaultdict
 
 from sqlalchemy import create_engine
 from sqlalchemy import Column, ForeignKey
@@ -7,6 +8,8 @@ from sqlalchemy import String, Integer, BigInteger, Float
 from sqlalchemy import DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+
+import pandas
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
@@ -19,9 +22,9 @@ class Cluster(Base):
     state = Column(String, nullable=False)
     state_message = Column(String, nullable=False)
     # TODO(gulyasm): This must be a foreign key and a seperate table
-    driver_type = Column(String, nullable=False)
-    worker_type = Column(String, nullable=False)
-    num_workers = Column(Integer, nullable=False)
+    driver_type = Column(String)
+    worker_type = Column(String)
+    num_workers = Column(Integer)
     spark_version = Column(String, nullable=False)
     creator_user_name = Column(String, nullable=False)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
@@ -33,7 +36,7 @@ class Cluster(Base):
     last_activity_time = Column(DateTime)
     last_state_loss_time = Column(DateTime)
     pinned_by_user_name = Column(String)
-    spark_context_id = Column(BigInteger, nullable=False)
+    spark_context_id = Column(BigInteger)
     spark_version = Column(String)
     start_time = Column(DateTime, nullable=False)
     terminated_time = Column(DateTime)
@@ -45,9 +48,15 @@ class Cluster(Base):
     spark_conf = Column(JSON)
     spark_env_vars = Column(JSON)
     events = relationship("Event")
+    cluster_states = relationship("ClusterStates")
 
     def eventFilterNot(self, types):
         return [e for e in self.events if e.type not in types]
+
+    def state_df(self):
+        df = pandas.DataFrame.from_records([s.to_dict() for s in self.cluster_states])
+        df["interval_dbu"] = df["dbu"] * df["interval"]
+        return df
 
 
 class Workspace(Base):
@@ -116,7 +125,7 @@ class JobRun(Base):
     workspace = relationship(Workspace)
     cluster_spec = Column(JSON, nullable=False)
     cluster_instance_id = Column(String, nullable=False)
-    spark_context_id = Column(BigInteger, nullable=False)
+    spark_context_id = Column(BigInteger)
     state_life_cycle_state = Column(String)
     state_result_state = Column(String)
     state_state_message = Column(String)
@@ -216,17 +225,29 @@ class ClusterStates(Base):
     __tablename__ = "cluster_states"
     cluster_id = Column(String, ForeignKey(
         "clusters.cluster_id"), primary_key=True)
+    cluster = relationship(Cluster)
     # should be foreign key to users table
     user_id = Column(String, primary_key=True)
     timestamp = Column(DateTime, primary_key=True)
     state = Column(String, primary_key=True)
-    driver_type = Column(String, nullable=False)
-    worker_type = Column(String, nullable=False)
-    num_workers = Column(Integer, nullable=False)
+    driver_type = Column(String)
+    worker_type = Column(String)
+    num_workers = Column(Integer)
     # TODO: set to not nullable once proper instance
     # type scraping is implemented.
     dbu = Column(Float, nullable=True)
     interval = Column(Float, nullable=False)
+
+    def __str__(self):
+        return f"ClusterState[cluster={self.cluster}, state={self.state}, interval={self.interval}, dbu={self.dbu}]"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def to_dict(self):
+        attributes = ["user_id", "cluster_id", "timestamp", "state",
+                    "driver_type", "worker_type", "num_workers", "dbu", "interval"]
+        return {attr: getattr(self, attr) for attr in attributes}
 
 
 def create_db():

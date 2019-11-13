@@ -1,6 +1,7 @@
 import re
 import time
 import logging
+import functools
 
 from datetime import timedelta
 
@@ -258,7 +259,7 @@ class EventParser:
                 + joined[f'worker_{cluster_type}']
                 * joined['num_workers'])
 
-
+@functools.lru_cache(maxsize=None)
 def query_instance_types() -> pd.DataFrame:
     # TODO 1: save locally and check if we can parse the actual page
     # TODO 2: parse azure and databricks specific machines as well
