@@ -95,9 +95,6 @@
                 <td>Driver type</td>
                 <td>Worker type</td>
                 <td>Workers</td>
-                <td>DBU cost / hour</td>
-                <td>HW cost / hour</td>
-                <td>Cost / hour</td>
             </tr>
         <tbody>
             {%for cluster in workspace.clusters%}
@@ -110,9 +107,6 @@
                 <td>{{cluster.driver_type}}</td>
                 <td>{{cluster.worker_type}}</td>
                 <td>{{cluster.num_workers}}</td>
-                <td>{{cluster.dbu_cost_per_hour}}</td>
-                <td>{{cluster.hw_cost_per_hour}}</td>
-                <td>{{cluster.cost_per_hour}}</td>
             </tr>
             {% endfor %}
 

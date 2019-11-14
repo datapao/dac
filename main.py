@@ -1,6 +1,7 @@
 import argparse
 import configparser
 import logging
+import functools
 
 from datetime import datetime, timedelta
 
@@ -31,14 +32,23 @@ def create_session():
     return session
 
 
+def get_level_info_data():
+    session = create_session()
+    workspaces = session.query(Workspace)
+    workspace_count = workspaces.count()
+    cluster_count = functools.reduce(lambda x, workspace: len(
+        workspace.active_clusters()) + x, workspaces, 0)
+    return {
+        "clusters": cluster_count,
+        "workspaces": workspace_count,
+        "daily_dbu": 56.214,
+        "daily_dbu_cost": 433.963
+    }
+
+
 @app.route('/')
 def view_dashboard():
-    data = {
-        "clusters": 45,
-        "workspaces": 3,
-        "daily_dbu": 56.214,Ï
-        "daily_vm": 433.963
-    }
+    data = get_level_info_data()
     return render_template('dashboard.html', data=data)
 
 
@@ -50,7 +60,8 @@ def view_workspace(workspace_id):
     df = workspace.state_df()
 
     if df is not None and not df.empty:
-        cost_summary, time_stats = aggregate_for_entity(df)
+        cost_summary, time_stats = aggregate_for_entity(
+            df)
         cost_summary_dict = cost_summary.to_dict()
         time_stats_dict = time_stats.to_dict("records")
     else:
@@ -62,7 +73,6 @@ def view_workspace(workspace_id):
         }
         time_stats_dict = {}
 
-
     return render_template('workspace.html',
                            workspace=workspace,
                            cost=cost_summary_dict,
@@ -73,7 +83,8 @@ def view_workspace(workspace_id):
 def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
-    return render_template('workspaces.html', workspaces=workspaces)
+    data=get_level_info_data()
+    return render_template('workspaces.html', workspaces=workspaces, data=data)
 
 
 @app.route('/alerts')
@@ -140,11 +151,8 @@ def view_cluster(cluster_id):
 def view_clusters():
     session = create_session()
     clusters = session.query(Cluster).all()
-    for cluster in clusters:
-        cluster.dbu_cost_per_hour = "$6.78"
-        cluster.hw_cost_per_hour = "$19.12"
-        cluster.cost_per_hour = "$25.9"
-    return render_template('clusters.html', clusters=clusters)
+    data=get_level_info_data()
+    return render_template('clusters.html', clusters=clusters, data=data)
 
 
 @app.route('/scrape_runs')
