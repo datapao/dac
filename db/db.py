@@ -77,9 +77,8 @@ class Workspace(Base):
         if not self.clusters:
             return None
 
-        states = [
-            [states.to_dict() for states in c.cluster_states] for c in self.clusters
-        ]
+        states = [[states.to_dict() for states in c.cluster_states]
+                  for c in self.clusters]
 
         states_df = [pd.DataFrame.from_records(s) for s in states]
         df = pd.concat(states_df)
@@ -98,9 +97,14 @@ class Event(Base):
 
     def human_details(self):
         patterns = {
-            "TERMINATING": lambda x: "Cluster is terminated due to {}".format(x["reason"]["code"].capitalize()),
+            "TERMINATING": lambda x: ("Cluster is terminated due to {}"
+                                      .format(x["reason"]["code"]
+                                              .capitalize())),
             "DRIVER_HEALTHY": lambda _: "Driver is healthy",
-            "RUNNING": lambda x: "Cluster is running with {current_num_workers} workers (target: {target_num_workers})".format(**x),
+            "RUNNING": lambda x: ("Cluster is running with "
+                                  "{current_num_workers} workers "
+                                  "(target: {target_num_workers})"
+                                  .format(**x)),
             "STARTING": lambda x: "Cluster is started by {user}".format(**x),
             "CREATING": lambda x: "Cluster is created by: {user}".format(**x)
         }
@@ -247,20 +251,24 @@ class ClusterStates(Base):
     driver_type = Column(String)
     worker_type = Column(String)
     num_workers = Column(Integer)
-    # TODO: set to not nullable once proper instance
-    # type scraping is implemented.
-    dbu = Column(Float, nullable=True)
+    dbu = Column(Float)
     interval = Column(Float, nullable=False)
 
     def __str__(self):
-        return f"ClusterState[cluster={self.cluster}, state={self.state}, interval={self.interval}, dbu={self.dbu}]"
+        return (f"ClusterState["
+                f"cluster={self.cluster}, "
+                f"state={self.state}, "
+                f"interval={self.interval}, "
+                f"dbu={self.dbu}"
+                f"]")
 
     def __repr__(self):
         return self.__str__()
 
     def to_dict(self):
         attributes = ["user_id", "cluster_id", "timestamp", "state",
-                      "driver_type", "worker_type", "num_workers", "dbu", "interval"]
+                      "driver_type", "worker_type", "num_workers",
+                      "dbu", "interval"]
         return {attr: getattr(self, attr) for attr in attributes}
 
 

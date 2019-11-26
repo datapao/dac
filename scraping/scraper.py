@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from db import engine_url
 from db import Base, Cluster, Workspace, Event, Job, JobRun
 from db import ScraperRun, ClusterStates
-from scraping.parser import parse_events
+from scraping.parser import parse_events, query_instance_types
 
 
 log = logging.getLogger("dac-scraper")
@@ -45,7 +45,7 @@ def to_time(t):
         return None
 
 
-def scrape_cluster(workspace, cluster_dict, session, api, result):
+def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result):
     log.debug("Scraping cluster: %s (%s)",
               cluster_dict["cluster_name"], cluster_dict["state"])
     cluster = Cluster(
@@ -58,41 +58,42 @@ def scrape_cluster(workspace, cluster_dict, session, api, result):
         num_workers=cluster_dict["num_workers"],
         spark_version=cluster_dict["spark_version"],
         creator_user_name=cluster_dict["creator_user_name"],
-        autotermination_minutes=cluster_dict.get(
-            "autotermination_minutes", None),
-        cluster_source=cluster_dict.get("cluster_source", None),
-        enable_elastic_disk=cluster_dict.get("enable_elastic_disk", None),
+        autotermination_minutes=cluster_dict.get("autotermination_minutes"),
+        cluster_source=cluster_dict.get("cluster_source"),
+        enable_elastic_disk=cluster_dict.get("enable_elastic_disk"),
         last_activity_time=to_time(
-            cluster_dict.get("last_activity_time", None)),
+            cluster_dict.get("last_activity_time")),
         last_state_loss_time=to_time(
-            cluster_dict.get("last_state_loss_time", None)),
-        pinned_by_user_name=cluster_dict.get("pinned_by_user_name", None),
-        spark_context_id=cluster_dict.get("spark_context_id", None),
+            cluster_dict.get("last_state_loss_time")),
+        pinned_by_user_name=cluster_dict.get("pinned_by_user_name"),
+        spark_context_id=cluster_dict.get("spark_context_id"),
         start_time=to_time(cluster_dict["start_time"]),
-        terminated_time=to_time(cluster_dict.get("terminated_time", None)),
+        terminated_time=to_time(cluster_dict.get("terminated_time")),
         workspace_id=workspace.id,
         default_tags=cluster_dict["default_tags"],
-        aws_attributes=cluster_dict.get("aws_attributes", None),
-        spark_conf=cluster_dict.get("spark_conf", None),
-        spark_env_vars=cluster_dict.get("spark_env_vars", None)
+        aws_attributes=cluster_dict.get("aws_attributes"),
+        spark_conf=cluster_dict.get("spark_conf"),
+        spark_env_vars=cluster_dict.get("spark_env_vars")
     )
     if "termination_reason" in cluster_dict:
-        cluster.termination_reason_code = cluster_dict["termination_reason"]["code"]
-        if "parameters" in cluster_dict["termination_reason"]:
-            cluster.termination_reason_inactivity_min = cluster_dict[
-                "termination_reason"]["parameters"].get("inactivity_duration_min", None)
-            cluster.termination_reason_username = cluster_dict[
-                "termination_reason"]["parameters"].get("username", None)
+        reason = cluster_dict["termination_reason"]
+        cluster.termination_reason_code = reason["code"]
+        if "parameters" in reason:
+            params = reason["parameters"]
+            cluster.termination_reason_inactivity_min = params.get("inactivity_duration_min")
+            cluster.termination_reason_username = params.get("username")
 
     session.merge(cluster)
     result.num_clusters += 1
     log.debug("Started scraping events for cluster %s", cluster.cluster_name)
-    events = api.cluster.get_events(cluster_id=cluster.cluster_id)
-    for event in events["events"]:
+    events = (api.cluster
+              .get_events(cluster_id=cluster.cluster_id)
+              .get('events', []))
+    for event in events:
         scrape_event(cluster, event, session, api, result)
 
     log.debug("Finished scraping events for cluster %s. Events: %d",
-              cluster.cluster_name, len(events["events"]))
+              cluster.cluster_name, len(events))
 
     # CLUSTER STATE PARSING
     # TODO: Events are not commited yet, so we cannot parse them.
@@ -102,7 +103,7 @@ def scrape_cluster(workspace, cluster_dict, session, api, result):
     # - change ClusterState to use raw events instead of querying it from the
     #   db. affected functions: parser.py/parse_events, parser.py/query_events
     #   this option is implemented currently, we should consider other options.
-    parsed_events = parse_events(session, events.get('events', []))
+    parsed_events = parse_events(session, events, instance_types)
     affected_rows = upsert_states(session, parsed_events)
 
     log.debug(f"Finished parsing events for cluster {cluster.cluster_name}. "
@@ -112,6 +113,8 @@ def scrape_cluster(workspace, cluster_dict, session, api, result):
 def scrape_job_run(workspace, job_run_dict, session, result):
     log.debug("Scraping job run in workspace: %s job (%s) run id: %s",
               workspace.name, job_run_dict["job_id"], job_run_dict["run_id"])
+    instance = job_run_dict["cluster_instance"]
+    state = job_run_dict["state"]
     job_run = JobRun(
         job_id=job_run_dict["job_id"],
         run_id=job_run_dict["run_id"],
@@ -119,11 +122,11 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         original_attempt_run_id=job_run_dict["original_attempt_run_id"],
         cluster_spec=job_run_dict["cluster_spec"],
         workspace_id=workspace.id,
-        cluster_instance_id=job_run_dict["cluster_instance"]["cluster_id"],
-        spark_context_id=job_run_dict["cluster_instance"].get("spark_context_id", None),
-        state_life_cycle_state=job_run_dict["state"]["life_cycle_state"],
-        state_result_state=job_run_dict["state"]["result_state"],
-        state_state_message=job_run_dict["state"]["state_message"],
+        cluster_instance_id=instance["cluster_id"],
+        spark_context_id=instance.get("spark_context_id"),
+        state_life_cycle_state=state["life_cycle_state"],
+        state_result_state=state["result_state"],
+        state_state_message=state["state_message"],
         task=job_run_dict["task"],
         start_time=to_time(job_run_dict["start_time"]),
         setup_duration=job_run_dict["setup_duration"],
@@ -173,8 +176,8 @@ def scrape_jobs(workspace, job_dict, session, api, result):
               job_dict["job_id"], len(job_runs))
 
 
-def scrape_workspace(workspace, session):
-    log.info("Scraping workspace %s", workspace.name)
+def scrape_workspace(workspace, session, instance_types):
+    log.info(f"Scraping workspace {workspace.name}, {workspace.url}")
     result = ScraperRun.empty()
     result.start()
     session.merge(workspace)
@@ -185,7 +188,7 @@ def scrape_workspace(workspace, session):
     log.info("Started scraping clusters in workspace %s.", workspace.name)
     clusters = api.cluster.list_clusters()
     for cluster in clusters.get("clusters", []):
-        scrape_cluster(workspace, cluster, session, api, result)
+        scrape_cluster(workspace, cluster, instance_types, session, api, result)
 
     log.info("Finished scraping clusters in workspace %s.", workspace.name)
 
@@ -249,9 +252,12 @@ def scrape():
     Base.metadata.bind = engine
     DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
     session = DBSession()
+
+    instance_types = query_instance_types()
+
     scraping_results = []
     for workspace in get_workspaces():
-        result = scrape_workspace(workspace, session)
+        result = scrape_workspace(workspace, session, instance_types)
         scraping_results.append(result)
 
     final_result = functools.reduce(

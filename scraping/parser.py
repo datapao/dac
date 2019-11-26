@@ -89,7 +89,9 @@ class EventParser:
         "TERMINATING": 'STOPPED',
         "RUNNING": 'RUNNING',
     }
-    instance_type_regex = re.compile(r'([a-z]\d[a-z]?.[\d]*[x]?large)')
+    instance_type_regex = re.compile(r'(([a-z]\d[a-z]?.[\d]*[x]?large)|'
+                                     r'((Standard_|Premium_)'
+                                     r'[a-zA-Z]{1,2}\d+[a-zA-Z]?(_v\d*)?))')
 
     def __init__(self, instance_types: pd.DataFrame) -> None:
         self.instance_type_map = instance_types
@@ -221,6 +223,14 @@ class EventParser:
 
         return 'analysis'
 
+    def clean_instance_col(self, col: pd.Series) -> pd.Series:
+        col = (col
+               # AZURE type simplification
+               .str.replace('Premium', 'Standard')
+               # REGEX clean
+               .str.extract(self.instance_type_regex))
+        return col
+
     def calculate_dbu(self,
                       df: pd.DataFrame,
                       cluster_type: str = 'analysis') -> pd.Series:
@@ -229,14 +239,8 @@ class EventParser:
                              f'during DBU computation.')
 
         clusters = df[['driver_type', 'worker_type', 'num_workers']].copy()
-        clusters['driver_type'] = (clusters
-                                   .driver_type
-                                   .str
-                                   .extract(self.instance_type_regex))
-        clusters['worker_type'] = (clusters
-                                   .worker_type
-                                   .str
-                                   .extract(self.instance_type_regex))
+        clusters['driver_type'] = self.clean_instance_col(clusters.driver_type)
+        clusters['worker_type'] = self.clean_instance_col(clusters.worker_type)
 
         mapping = self.instance_type_map[['type', 'cpu', 'mem', cluster_type]]
 
@@ -259,17 +263,41 @@ class EventParser:
                 + joined[f'worker_{cluster_type}']
                 * joined['num_workers'])
 
+
 @functools.lru_cache(maxsize=None)
 def query_instance_types() -> pd.DataFrame:
-    # TODO 1: save locally and check if we can parse the actual page
-    # TODO 2: parse azure and databricks specific machines as well
-    # (eg. Standard_DS3_v2) - related todo in db/db.py:224
-    regex = r'([a-z]\d[a-z]?.[\d]*[x]?large)'
+    # TODO: save locally and check if we can parse the actual page
+    regex = re.compile(r'(([a-z]\d[a-z]?.[\d]*[x]?large)|'
+                       r'((Standard_|Premium_)'
+                       r'[a-zA-Z]{1,2}\d+[a-zA-Z]?(_v\d*)?))')
 
-    url = "https://databricks.com/product/aws-pricing/instance-types"
-    df = pd.read_html(url)[0].drop(columns=[6])
-    df.columns = ['type', 'cpu', 'mem', 'light', 'job', 'analysis']
-    df['type'] = df.type.str.extract(regex)
+    # AWS parse
+    aws_url = "https://databricks.com/product/aws-pricing/instance-types"
+    aws = pd.read_html(aws_url)[0].drop(columns=[6])
+    aws.columns = ['type', 'cpu', 'mem', 'light', 'job', 'analysis']
+    aws['type'] = aws.type.str.extract(regex)
+
+    # AZURE parse
+    column_mapping = {
+        'Instance': 'type',
+        'vCPU': 'cpu',
+        'Ram': 'mem',
+        'Dbu Count': 'light'
+    }
+    azure_url = "https://azure.microsoft.com/en-us/pricing/details/databricks/"
+    azure_dfs = [df for df in pd.read_html(azure_url)
+                 if 'Dbu Count' in df.columns]
+    azure = (pd.concat(azure_dfs)
+             [column_mapping.keys()]
+             .rename(columns=column_mapping)
+             .drop_duplicates()
+             .assign(job=lambda df: df['light'],
+                     analysis=lambda df: df['light']))
+    azure['type'] = 'Standard_' + azure.type.str.replace(' ', '_')
+    azure['type'] = azure.type.str.extract(regex)
+
+    # MERGE
+    df = pd.concat([aws, azure]).reset_index(drop=True)
 
     return df
 
@@ -286,14 +314,16 @@ def query_cluster_names(session: "Session") -> dict:
     return {cluster.cluster_id: cluster.cluster_name for cluster in clusters}
 
 
-def parse_events(session: "Session", events: list) -> pd.DataFrame:
+def parse_events(session: "Session",
+                 events: list,
+                 instance_types: list) -> pd.DataFrame:
     log.info("Parsing started...")
     start_time = time.time()
 
     # Querying required info from db / web
-    # events = query_events(session)  # related todo in scraping/scraper.py:102
+    # events = query_events(session)  # related todo in scraping/scraper.py:98
+    # instance_types = query_instance_types()  # prevent web query every run
     cluster_names = query_cluster_names(session)
-    instance_types = query_instance_types()
 
     # Parsing
     parser = EventParser(instance_types)
