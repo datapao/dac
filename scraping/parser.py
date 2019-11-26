@@ -125,7 +125,7 @@ class EventParser:
 
         return {'timestamp': event.get('timestamp', 0),
                 'cluster_id': event.get('cluster_id'),
-                'user': user,
+                'user_id': user,
                 'event': etype,
                 'driver_type': driver_type,
                 'worker_type': worker_type,
