@@ -5,13 +5,15 @@ import functools
 
 from datetime import datetime, timedelta
 
+import pandas as pd
+
 from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
+from aggregation import aggregate_for_entity, sum_dbu
 from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
 from scraping import scrape, start_scheduled_scraping
-import pandas as pd
 
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
@@ -20,7 +22,7 @@ log = logging.getLogger("dac")
 logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='templates/static/')
 engine = create_engine(engine_url)
 Base.metadata.bind = engine
 
@@ -35,33 +37,43 @@ def create_session():
 def get_level_info_data():
     session = create_session()
     workspaces = session.query(Workspace)
+
     workspace_count = workspaces.count()
-    cluster_count = functools.reduce(lambda x, workspace: len(
-        workspace.active_clusters()) + x, workspaces, 0)
-    return {
+    cluster_count = sum([len(workspace.active_clusters())
+                         for workspace in workspaces])
+    user_count = sum([len(workspace.users()) for workspace in workspaces])
+    states = pd.concat(workspace.state_df() for workspace in workspaces)
+    dbu_count = sum_dbu(states, since_days=1)
+    # TODO: use price from settings
+    # related todo @ db.py: implement user settings
+    dbu_cost = dbu_count * 10
+
+    return states, {
         "clusters": cluster_count,
         "workspaces": workspace_count,
-        "daily_dbu": 56.214,
-        "daily_dbu_cost": 433.963
+        "user_count": user_count,
+        "daily_dbu": dbu_count,
+        "daily_dbu_cost": dbu_cost
     }
 
 
 @app.route('/')
 def view_dashboard():
-    data = get_level_info_data()
+    states, data = get_level_info_data()
     return render_template('dashboard.html', data=data)
 
 
 @app.route('/workspaces/<string:workspace_id>')
 def view_workspace(workspace_id):
     session = create_session()
-    workspace = session.query(Workspace).filter(
-        Workspace.id == workspace_id).one()
+    workspace = (session
+                 .query(Workspace)
+                 .filter(Workspace.id == workspace_id)
+                 .one())
     df = workspace.state_df()
 
     if df is not None and not df.empty:
-        cost_summary, time_stats = aggregate_for_entity(
-            df)
+        cost_summary, time_stats = aggregate_for_entity(df)
         cost_summary_dict = cost_summary.to_dict()
         time_stats_dict = time_stats.to_dict("records")
     else:
@@ -83,7 +95,7 @@ def view_workspace(workspace_id):
 def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
-    data=get_level_info_data()
+    states, data = get_level_info_data()
     return render_template('workspaces.html', workspaces=workspaces, data=data)
 
 
@@ -97,46 +109,13 @@ def view_users():
     return render_template('users.html')
 
 
-def aggregate_for_entity(states: pd.DataFrame):
-    states["worker_hours"] = states["interval"] * states["num_workers"]
-    states.fillna(0, inplace=True)
-
-    cost_summary = states.agg({
-        "interval_dbu": "sum",
-        "interval": "sum"
-    })
-
-    time_stats = states.groupby(pd.Grouper(key="timestamp", freq="1D", label="right")).agg({
-        "dbu": "max",
-        "interval": "sum",
-        "interval_dbu": "sum",
-        "num_workers": ["min", "max", "median"],
-        "worker_hours": "sum"
-    })
-    full_index = pd.date_range(datetime.today(
-    )-timedelta(days=30), datetime.today(), freq="1D", normalize=True)
-    time_stats = time_stats.reindex(full_index)
-    time_stats.fillna(0, inplace=True)
-    time_stats.columns = ['_'.join(col) for col in time_stats.columns.values]
-
-    weekly_cost_stats = time_stats[time_stats.index >= datetime.today() - timedelta(days=7)].agg({
-        "interval_dbu_sum": "sum",
-        "interval_sum": "sum"
-    })
-    weekly_cost_stats.index = [
-        f"weekly_{p}" for p in weekly_cost_stats.index.values]
-    cost_summary = pd.concat([cost_summary, weekly_cost_stats])
-
-    time_stats.index = time_stats.index.format()
-    time_stats["ts"] = time_stats.index
-    return cost_summary, time_stats
-
-
 @app.route('/clusters/<string:cluster_id>')
 def view_cluster(cluster_id):
     session = create_session()
-    cluster = session.query(Cluster).filter(
-        Cluster.cluster_id == cluster_id).one()
+    cluster = (session
+               .query(Cluster)
+               .filter(Cluster.cluster_id == cluster_id)
+               .one())
     states = cluster.state_df()
 
     cost_summary, time_stats = aggregate_for_entity(states)
@@ -151,8 +130,17 @@ def view_cluster(cluster_id):
 def view_clusters():
     session = create_session()
     clusters = session.query(Cluster).all()
-    data=get_level_info_data()
-    return render_template('clusters.html', clusters=clusters, data=data)
+
+    states, data = get_level_info_data()
+    cost_summary, time_stats = aggregate_for_entity(states)
+    cluster_dbus = (sum_dbu(states, by="cluster_id", since_days=7)
+                    .dbu.to_dict())
+
+    return render_template('clusters.html',
+                           clusters=clusters,
+                           data=data,
+                           cluster_dbus=cluster_dbus,
+                           time_stats=time_stats.to_dict("records"))
 
 
 @app.route('/scrape_runs')
@@ -177,8 +165,8 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', type=str, help='command to run', choices=[
-                        "create_db", "scrape", "scrape_once"])
+    parser.add_argument('command', type=str, help='command to run',
+                        choices=["create_db", "scrape", "scrape_once"])
     parser.add_argument('-c', '--config', type=str,
                         help='path to config file to use', default="config.ini")
     args = parser.parse_args()
