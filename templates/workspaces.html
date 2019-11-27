@@ -1,39 +1,41 @@
  {% extends "index.html" %}
  {% block content %}
 
- {% include 'level-info-bar.html' %}
-      
  <h1 class="title">Workspaces</h1>
-        <table class="table is-hoverable is-fullwidth">
-            <thead>
-                <tr>
-                    <td>Name</td>
-                    <td>ID</td>
-                    <td>Type</td>
-                    <td>URL</td>
-                    <td>Active Clusters</td>
-                    <td>Clusters</td>
-                    <td>Daily cost</td>
-                    <td>Monthly cost</td>
-                </tr>
-                <tbody>
-                    {%for w in workspaces%}
-                    <tr>
-                        <td><a href={{url_for("view_workspace", workspace_id=w.id)}}>{{w.name}}</a></td>
-                        <td>{{w.id}}</td>
-                        <td>{{w.type}}</td>
-                        <td><a href={{["https:", w.url] | join("//")}}>{{w.url}}</a></td>
-                        <td>{{w.active_clusters() | length}}</td>
-                        <td>{{w.clusters|length}}</td>
-                        <td>$54.34</td>
-                        <td>$6714.34</td>
-                    </tr>
-                    {% endfor %}
 
-                </tbody>
-                    
-                    
+    {% include 'level-info-bar.html' %}
+
+    <table class="table is-hoverable is-fullwidth">
+        <thead>
+            <tr>
+                <td>Name</td>
+                <td>ID</td>
+                <td>Type</td>
+                <td>URL</td>
+                <td>Active Clusters</td>
+                <td>Clusters</td>
+                <td>Daily cost</td>
+                <td>Monthly cost</td>
+            </tr>
+            <tbody>
+                {%for w in workspaces%}
+                <tr>
+                    <td><a href={{url_for("view_workspace", workspace_id=w.id)}}>{{w.name}}</a></td>
+                    <td>{{w.id}}</td>
+                    <td>{{w.type}}</td>
+                    <td><a href={{["https:", w.url] | join("//")}}>{{w.url}}</a></td>
+                    <td>{{w.active_clusters() | length}}</td>
+                    <td>{{w.clusters|length}}</td>
+                    <td>$54.34</td>
+                    <td>$6714.34</td>
                 </tr>
-            </thead>
-        </table>
+                {% endfor %}
+
+            </tbody>
+
+
+            </tr>
+        </thead>
+    </table>
+
 {% endblock %}

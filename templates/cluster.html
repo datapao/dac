@@ -83,7 +83,7 @@
     <div class="column is-half">
         <canvas id="chart-worker-hours"></canvas>
     </div>
-   
+
 </div>
 
 
@@ -125,99 +125,10 @@
     labels = time_stats.map(({ts}) => ts)
     console.log(time_stats)
 
-    var ctx = document.getElementById('chart-price').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Total DBU',
-                data: interval_dbu_sum,
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
+    chart('chart-price', 'Total DBU', 'bar', true, labels, interval_dbu_sum);
+    chart('chart-clusters', 'Running time (hours)', 'line', false, labels, interval_sum);
+    chart('chart-workers', 'Max workers', 'bar', true, labels, num_workers_max);
+    chart('chart-worker-hours', 'Worker hours', 'bar', true, labels, worker_hours_sum);
 
-    var ctx = document.getElementById('chart-clusters').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Running time (hours)',
-                data: interval_sum,
-                fill: false,
-                borderColor: '#7B8CDE',
-                borderWidth: 2
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
-
-    var ctx = document.getElementById('chart-workers').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Max workers',
-                data: num_workers_max,
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 2
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
-    var ctx = document.getElementById('chart-worker-hours').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Worker hours',
-                data: worker_hours_sum,
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 2
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
 </script>
 {% endblock %}
