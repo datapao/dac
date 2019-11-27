@@ -2,6 +2,8 @@ from uuid import uuid4
 from datetime import datetime
 from collections import defaultdict
 
+import pandas as pd
+
 from sqlalchemy import create_engine
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, Integer, BigInteger, Float
@@ -9,7 +11,6 @@ from sqlalchemy import DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
-import pandas as pd
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
@@ -31,7 +32,6 @@ class Cluster(Base):
     workspace = relationship("Workspace")
     autotermination_minutes = Column(Integer)
     cluster_source = Column(String)
-    creator_user_name = Column(String)
     enable_elastic_disk = Column(Boolean)
     last_activity_time = Column(DateTime)
     last_state_loss_time = Column(DateTime)
@@ -59,6 +59,14 @@ class Cluster(Base):
         df["interval_dbu"] = df["dbu"] * df["interval"]
         return df
 
+    def users(self):
+        # TODO: inactive users won't be available
+        return list({state.user_id for state in self.cluster_states})
+
+    def dbu_per_hour(self):
+        df = self.state_df().sort_values('timestamp')
+        return df.loc[df.state == 'RUNNING', 'dbu'].iloc[-1]
+
 
 class Workspace(Base):
     __tablename__ = "workspaces"
@@ -83,7 +91,14 @@ class Workspace(Base):
         states_df = [pd.DataFrame.from_records(s) for s in states]
         df = pd.concat(states_df)
         df["interval_dbu"] = df["dbu"] * df["interval"]
+
         return df
+
+    def users(self):
+        # TODO: inactive users won't be available
+        return list({user
+                     for cluster in self.clusters
+                     for user in cluster.users()})
 
 
 class Event(Base):
