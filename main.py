@@ -166,7 +166,8 @@ def view_clusters():
     session = create_session()
     clusters = session.query(Cluster).all()
 
-    states, data = get_level_info_data()
+    data = get_level_info_data()
+    states = concat_dfs(cluster.state_df() for cluster in clusters)
     cost_summary, time_stats = aggregate_for_entity(states)
     cluster_dbus = (aggregate(df=states,
                               col="interval_dbu",
