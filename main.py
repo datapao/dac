@@ -11,7 +11,8 @@ from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
-from aggregation import aggregate, sum_dbu, aggregate_for_entity
+from aggregation import concat_dfs, aggregate
+from aggregation import get_cluster_dbus, aggregate_for_entity
 from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
 from scraping import scrape, start_scheduled_scraping
 
@@ -42,13 +43,15 @@ def get_level_info_data():
     cluster_count = sum([len(workspace.active_clusters())
                          for workspace in workspaces])
     user_count = sum([len(workspace.users()) for workspace in workspaces])
-    states = pd.concat(workspace.state_df() for workspace in workspaces)
-    dbu_count = sum_dbu(states, since_days=1)
+    actives = concat_dfs(workspace.state_df(active_only=True)
+                         for workspace in workspaces)
+
+    dbu_count = get_cluster_dbus(actives)
     # TODO: use price from settings
     # related todo @ db.py: implement user settings
     dbu_cost = dbu_count * 10
 
-    return states, {
+    return {
         "clusters": cluster_count,
         "workspaces": workspace_count,
         "user_count": user_count,
@@ -59,8 +62,26 @@ def get_level_info_data():
 
 @app.route('/')
 def view_dashboard():
-    states, data = get_level_info_data()
-    return render_template('dashboard.html', data=data)
+    session = create_session()
+    clusters = session.query(Cluster).all()
+
+    clusters_by_type = {}
+    for cluster in clusters:
+        clusters_by_type.setdefault(cluster.worker_type, []).append(cluster)
+
+    data = get_level_info_data()
+
+    states = concat_dfs(cluster.state_df() for cluster in clusters)
+    if not states.empty:
+        cost_summary, time_stats = aggregate_for_entity(states)
+        time_stats_dict = time_stats.to_dict("records")
+    else:
+        time_stats_dict = {}
+
+    return render_template('dashboard.html',
+                           clusters=clusters_by_type,
+                           time_stats=time_stats_dict,
+                           data=data)
 
 
 @app.route('/workspaces/<string:workspace_id>')
@@ -70,14 +91,18 @@ def view_workspace(workspace_id):
                  .query(Workspace)
                  .filter(Workspace.id == workspace_id)
                  .one())
-    df = workspace.state_df()
+    states = workspace.state_df()
 
-    if df is not None and not df.empty:
-        cost_summary, time_stats = aggregate_for_entity(df)
+    if not states.empty:
+        cost_summary, time_stats = aggregate_for_entity(states)
         cost_summary_dict = cost_summary.to_dict()
         time_stats_dict = time_stats.to_dict("records")
-        top_users = (sum_dbu(df=df, by='user_id', since_days=7)
+        top_users = (aggregate(df=states,
+                               col='interval_dbu',
+                               by='user_id',
+                               since_days=7)
                      .reset_index()
+                     .rename(columns={'interval_dbu': 'dbu'})
                      .sort_values('dbu', ascending=False))
         top_users_dict = (top_users
                           .loc[~top_users.user_id.isin(['UNKONWN'])]
@@ -105,7 +130,7 @@ def view_workspace(workspace_id):
 def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
-    states, data = get_level_info_data()
+    data = get_level_info_data()
     return render_template('workspaces.html', workspaces=workspaces, data=data)
 
 
@@ -143,7 +168,11 @@ def view_clusters():
 
     states, data = get_level_info_data()
     cost_summary, time_stats = aggregate_for_entity(states)
-    cluster_dbus = (sum_dbu(states, by="cluster_id", since_days=7)
+    cluster_dbus = (aggregate(df=states,
+                              col="interval_dbu",
+                              by="cluster_id",
+                              since_days=7)
+                    .rename(columns={'interval_dbu': 'dbu'})
                     .dbu.to_dict())
 
     return render_template('clusters.html',
