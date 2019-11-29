@@ -295,6 +295,11 @@ def query_instance_types() -> pd.DataFrame:
                      analysis=lambda df: df['light']))
     azure['type'] = 'Standard_' + azure.type.str.replace(' ', '_')
     azure['type'] = azure.type.str.extract(regex)
+    # TODO: find an elegant solution to this hotfix:
+    # Azure site has some misspelled instance names:
+    # Standard_F4, F8, F16 instead of Standard_F4s, F8s, F16s
+    affected_rows = azure.type.str.match(r'Standard_F\d((?!_v\d).)*$')
+    azure.loc[affected_rows, 'type'] = azure.loc[affected_rows, 'type'] + 's'
 
     # MERGE
     df = pd.concat([aws, azure]).reset_index(drop=True)
