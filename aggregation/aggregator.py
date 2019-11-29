@@ -7,16 +7,20 @@ def since(days: int) -> datetime:
     return datetime.today() - timedelta(days=days)
 
 
+def get_time_grouper(col: str, freq='1D') -> pd.Grouper:
+    return pd.Grouper(key=col, freq=freq, label="right")
+
+
 def aggregate(df: pd.DataFrame,
               col: str = 'dbu',
               by: list = None,
               aggfunc: str = 'sum',
               since_days: int = None):
 
-    filter = df.state == 'RUNNING'
+    filtered = df.loc[df.state.isin(['RUNNING'])]
     if since_days is not None:
-        filter &= df.timestamp > since(since_days)
-    running = df.loc[filter].copy()
+        filtered = df.loc[df.timestamp >= since(since_days)]
+    running = filtered.copy()
 
     # No grouping: return the value
     if by is None:
@@ -47,20 +51,21 @@ def sum_dbu(df: pd.DataFrame, by: list = None, since_days: int = None):
     dbu : float or pd.DataFrame
         Summed up DBU usage.
     """
-    result = aggregate(df=df.assign(cost=df.dbu * df.interval),
-                       col='cost',
+    result = aggregate(df=df,
+                       col='interval_dbu',
                        by=by,
                        since_days=since_days)
 
     if isinstance(result, pd.DataFrame):
-        result = result.rename(columns={'cost': 'dbu'})
+        result = result.rename(columns={'interval_dbu': 'dbu'})
 
     return result
 
 
 def aggregate_over_time(states: pd.DataFrame) -> pd.DataFrame:
-    grouper = pd.Grouper(key="timestamp", freq="1D", label="right")
-    aggregations = {"dbu": "max",
+    grouper = get_time_grouper("timestamp")
+    aggregations = {"cluster_id": "nunique",
+                    "dbu": "max",
                     "interval": "sum",
                     "interval_dbu": "sum",
                     "num_workers": ["min", "max", "median"],
@@ -84,12 +89,13 @@ def aggregate_over_time(states: pd.DataFrame) -> pd.DataFrame:
 def aggregate_for_entity(states: pd.DataFrame):
     states = (states
               .assign(worker_hours=states["interval"] * states["num_workers"])
-              .fillna(0))
+              .fillna(0)
+              .loc[states['state'].isin(['RUNNING'])])
 
     time_stats = aggregate_over_time(states)
 
     weekly_cost_stats = (time_stats
-                         .loc[:since(days=7),
+                         .loc[since(days=7):,
                               ["interval_dbu_sum", "interval_sum"]]
                          .sum())
     weekly_cost_stats.index = [f"weekly_{p}" for p in weekly_cost_stats.index]
