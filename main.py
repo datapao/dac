@@ -11,7 +11,7 @@ from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
-from aggregation import aggregate_for_entity, sum_dbu
+from aggregation import aggregate, sum_dbu, aggregate_for_entity
 from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
 from scraping import scrape, start_scheduled_scraping
 
@@ -76,6 +76,14 @@ def view_workspace(workspace_id):
         cost_summary, time_stats = aggregate_for_entity(df)
         cost_summary_dict = cost_summary.to_dict()
         time_stats_dict = time_stats.to_dict("records")
+        top_users = (sum_dbu(df=df, by='user_id', since_days=7)
+                     .reset_index()
+                     .sort_values('dbu', ascending=False))
+        top_users_dict = (top_users
+                          .loc[~top_users.user_id.isin(['UNKONWN'])]
+                          .to_dict("records")
+                          [:3])
+
     else:
         cost_summary_dict = {
             "interval": 0.0,
@@ -84,11 +92,13 @@ def view_workspace(workspace_id):
             "weekly_interval_dbu_sum": 0.0,
         }
         time_stats_dict = {}
+        top_users_dict = {}
 
     return render_template('workspace.html',
                            workspace=workspace,
                            cost=cost_summary_dict,
-                           time_stats=time_stats_dict)
+                           time_stats=time_stats_dict,
+                           top_users=top_users_dict)
 
 
 @app.route('/workspaces')
