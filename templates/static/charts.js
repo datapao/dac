@@ -1,11 +1,11 @@
-function chart(chart_id, title, type, fill, labels, data) {
+function chart(chart_id, title, data_label, type, fill, labels, data) {
     var ctx = document.getElementById(chart_id).getContext('2d');
-    var myChart = new Chart(ctx, {
+    var chart_setup = {
         type: type,
         data: {
             labels: labels,
             datasets: [{
-                label: title,
+                label: data_label,
                 data: data,
                 fill: fill,
                 backgroundColor: '#7B8CDE',
@@ -22,5 +22,13 @@ function chart(chart_id, title, type, fill, labels, data) {
                 }]
             }
         }
-    });
+    };
+    if (title != false) {
+        chart_setup['options']['title'] = {
+            display: true,
+            text: title
+        }
+    };
+
+    var myChart = new Chart(ctx, chart_setup);
   }

@@ -66,7 +66,7 @@ class Cluster(Base):
 
     def dbu_per_hour(self):
         df = self.state_df()
-        return df.loc[df.state == 'RUNNING', 'dbu'].iloc[-1]
+        return df.loc[df.state.isin(['RUNNING']), 'dbu'].iloc[-1]
 
 
 class Workspace(Base):
@@ -83,11 +83,13 @@ class Workspace(Base):
         return [cluster for cluster in self.clusters
                 if cluster.state in ["RUNNING", "PENDING"]]
 
-    def state_df(self):
-        if not self.clusters:
+    def state_df(self, active_only=False):
+        clusters = self.clusters if not active_only else self.active_clusters()
+
+        if not clusters:
             return pd.DataFrame()
 
-        df = (pd.concat(cluster.state_df() for cluster in self.clusters)
+        df = (pd.concat(cluster.state_df() for cluster in clusters)
               .sort_values('timestamp')
               .reset_index(drop=True))
 
