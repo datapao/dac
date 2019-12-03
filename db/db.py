@@ -2,6 +2,8 @@ from uuid import uuid4
 from datetime import datetime
 from collections import defaultdict
 
+import pandas as pd
+
 from sqlalchemy import create_engine
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, Integer, BigInteger, Float
@@ -9,7 +11,6 @@ from sqlalchemy import DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
-import pandas as pd
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
@@ -31,7 +32,6 @@ class Cluster(Base):
     workspace = relationship("Workspace")
     autotermination_minutes = Column(Integer)
     cluster_source = Column(String)
-    creator_user_name = Column(String)
     enable_elastic_disk = Column(Boolean)
     last_activity_time = Column(DateTime)
     last_state_loss_time = Column(DateTime)
@@ -54,10 +54,19 @@ class Cluster(Base):
         return [e for e in self.events if e.type not in types]
 
     def state_df(self):
-        df = pd.DataFrame.from_records(
-            [s.to_dict() for s in self.cluster_states])
+        df = (pd.DataFrame([state.to_dict() for state in self.cluster_states])
+              .sort_values('timestamp'))
         df["interval_dbu"] = df["dbu"] * df["interval"]
+
         return df
+
+    def users(self):
+        # TODO: inactive users won't be available
+        return list({state.user_id for state in self.cluster_states})
+
+    def dbu_per_hour(self):
+        df = self.state_df()
+        return df.loc[df.state.isin(['RUNNING']), 'dbu'].iloc[-1]
 
 
 class Workspace(Base):
@@ -71,19 +80,26 @@ class Workspace(Base):
     clusters = relationship(Cluster)
 
     def active_clusters(self):
-        return [c for c in self.clusters if c.state in ["RUNNING", "PENDING"]]
+        return [cluster for cluster in self.clusters
+                if cluster.state in ["RUNNING", "PENDING"]]
 
-    def state_df(self):
-        if not self.clusters:
-            return None
+    def state_df(self, active_only=False):
+        clusters = self.clusters if not active_only else self.active_clusters()
 
-        states = [[states.to_dict() for states in c.cluster_states]
-                  for c in self.clusters]
+        if not clusters:
+            return pd.DataFrame()
 
-        states_df = [pd.DataFrame.from_records(s) for s in states]
-        df = pd.concat(states_df)
-        df["interval_dbu"] = df["dbu"] * df["interval"]
+        df = (pd.concat(cluster.state_df() for cluster in clusters)
+              .sort_values('timestamp')
+              .reset_index(drop=True))
+
         return df
+
+    def users(self):
+        # TODO: inactive users won't be available
+        return list({user
+                     for cluster in self.clusters
+                     for user in cluster.users()})
 
 
 class Event(Base):

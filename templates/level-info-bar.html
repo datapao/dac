@@ -7,20 +7,26 @@
   </div>
   <div class="level-item has-text-centered">
     <div>
-      <p class="heading">Clusters</p>
+      <p class="heading">Active Clusters</p>
       <p class="title">{{data.clusters}}</p>
     </div>
   </div>
   <div class="level-item has-text-centered">
     <div>
-      <p class="heading">Daily cost</p>
-      <p class="title">$459.76</p>
+      <p class="heading">Active DBU Count</p>
+      <p class="title">{{data.daily_dbu | round(1, 'common')}}</p>
     </div>
   </div>
   <div class="level-item has-text-centered">
     <div>
-      <p class="heading">Users</p>
-      <p class="title">76</p>
+      <p class="heading">Daily cost</p>
+      <p class="title">${{data.daily_dbu_cost | round(1, 'common')}}</p>
+    </div>
+  </div>
+  <div class="level-item has-text-centered">
+    <div>
+      <p class="heading">Active Users</p>
+      <p class="title">{{data.user_count}}</p>
     </div>
   </div>
 </nav>

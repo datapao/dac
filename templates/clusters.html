@@ -1,11 +1,20 @@
 {% extends "index.html" %}
 {% block content %}
 
-
+<h1 class="title">Clusters</h1>
 {% include 'level-info-bar.html' %}
 
 
-<h1 class="title">Clusters</h1>
+<div class="columns">
+  <div class="column is-half">
+      <canvas id="chart-price"></canvas>
+  </div>
+  <div class="column is-half">
+      <canvas id="chart-clusters"></canvas>
+  </div>
+</div>
+
+
 <table class="table is-hoverable is-fullwidth">
   <thead>
     <tr>
@@ -16,23 +25,27 @@
       <td>Driver type</td>
       <td>Worker type</td>
       <td>Workers</td>
+      <td>DBU / hour</td>
+      <td>Last 7 days DBU</td>
       <td>DBU cost / hour</td>
       <td>HW cost / hour</td>
       <td>Cost / hour</td>
     </tr>
   <tbody>
-    {%for cluster in clusters%}
+    {% for cluster in clusters %}
     <tr>
-      <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id)}}>{{cluster.cluster_name}}</a></td>
-      <td>{{cluster.state}}</td>
-      <td>{{cluster.cluster_id}}</td>
-      <td><a href="/workspaces">{{cluster.workspace.id}}</a></td>
-      <td>{{cluster.driver_type}}</td>
-      <td>{{cluster.worker_type}}</td>
-      <td>{{cluster.num_workers}}</td>
-      <td>{{cluster.dbu_cost_per_hour}}</td>
-      <td>{{cluster.hw_cost_per_hour}}</td>
-      <td>{{cluster.cost_per_hour}}</td>
+      <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
+      <td>{{ cluster.state }}</td>
+      <td>{{ cluster.cluster_id }}</td>
+      <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
+      <td>{{ cluster.driver_type }}</td>
+      <td>{{ cluster.worker_type }}</td>
+      <td>{{ cluster.num_workers }}</td>
+      <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
+      <td>{{ cluster_dbus.get(cluster.cluster_id, 0.0) | round(2, 'common') }}</td>
+      <td>{{ cluster.dbu_cost_per_hour }}</td>
+      <td>{{ cluster.hw_cost_per_hour }}</td>
+      <td>{{ cluster.cost_per_hour }}</td>
     </tr>
     {% endfor %}
 
@@ -42,4 +55,21 @@
   </tr>
   </thead>
 </table>
+
+
+<script>
+
+  var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+
+  interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+  interval_sum = time_stats.map(({interval_sum}) => interval_sum);
+  labels = time_stats.map(({ts}) => ts);
+  console.log(time_stats);
+
+  chart('chart-price', false, 'Total DBU', 'bar', true, labels, interval_dbu_sum);
+  chart('chart-clusters', false, 'Running time (hours)', 'line', false, labels, interval_sum);
+
+</script>
+
+
 {% endblock %}
