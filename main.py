@@ -11,9 +11,9 @@ from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
-from aggregation import concat_dfs, aggregate
-from aggregation import get_cluster_dbus, aggregate_for_entity
-from db import Cluster, Workspace, create_db, Base, engine_url, ScraperRun
+from aggregation import concat_dfs, get_time_index, get_time_grouper
+from aggregation import aggregate, get_cluster_dbus, aggregate_for_entity
+from db import engine_url, create_db, Base, Workspace, Cluster, Job, ScraperRun
 from scraping import scrape, start_scheduled_scraping
 
 
@@ -60,28 +60,66 @@ def get_level_info_data():
     }
 
 
+def get_running_jobs(session):
+    jobs = pd.DataFrame([{'job_id': job.job_id,
+                          'workspace_id': job.workspace_id,
+                          'user_id': job.creator_user_name,
+                          'name': job.name,
+                          'timestamp': job.created_time}
+                         for job in session.query(Job).all()])
+    numbjobs_dict = {}
+    if not jobs.empty:
+        numjobs = (jobs
+                   .groupby(get_time_grouper('timestamp'))
+                   [['job_id']]
+                   .count()
+                   .reindex(get_time_index(30), fill_value=0))
+        numjobs['ts'] = numjobs.index.format()
+        numbjobs_dict = numjobs.to_dict('records')
+
+    return numbjobs_dict
+
+
+def get_last_7_days_dbu(states: pd.DataFrame) -> dict:
+    last7dbu_dict = {}
+    if not states.empty:
+        last7dbu = (aggregate(df=states,
+                              col='interval_dbu',
+                              by=get_time_grouper('timestamp'),
+                              aggfunc='sum',
+                              since_days=7)
+                    .reindex(get_time_index(7), fill_value=0))
+        last7dbu['ts'] = last7dbu.index.format()
+        last7dbu_dict = last7dbu.to_dict('records')
+    return last7dbu_dict
+
+
 @app.route('/')
 def view_dashboard():
     session = create_session()
     clusters = session.query(Cluster).all()
+    states = concat_dfs(cluster.state_df() for cluster in clusters)
 
     clusters_by_type = {}
     for cluster in clusters:
         clusters_by_type.setdefault(cluster.worker_type, []).append(cluster)
 
-    data = get_level_info_data()
+    level_info_data = get_level_info_data()
+    numbjobs_dict = get_running_jobs(session)
+    last7dbu_dict = get_last_7_days_dbu(states)
 
-    states = concat_dfs(cluster.state_df() for cluster in clusters)
+    time_stats_dict = {}
     if not states.empty:
         cost_summary, time_stats = aggregate_for_entity(states)
+        time_stats['interval_cumsum'] = time_stats['interval_sum'].cumsum()
         time_stats_dict = time_stats.to_dict("records")
-    else:
-        time_stats_dict = {}
 
     return render_template('dashboard.html',
                            clusters=clusters_by_type,
                            time_stats=time_stats_dict,
-                           data=data)
+                           last7dbu=last7dbu_dict,
+                           numjobs=numbjobs_dict,
+                           data=level_info_data)
 
 
 @app.route('/workspaces/<string:workspace_id>')
@@ -130,8 +168,10 @@ def view_workspace(workspace_id):
 def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
-    data = get_level_info_data()
-    return render_template('workspaces.html', workspaces=workspaces, data=data)
+    level_info_data = get_level_info_data()
+    return render_template('workspaces.html',
+                           workspaces=workspaces,
+                           data=level_info_data)
 
 
 @app.route('/alerts')
@@ -166,7 +206,7 @@ def view_clusters():
     session = create_session()
     clusters = session.query(Cluster).all()
 
-    data = get_level_info_data()
+    level_info_data = get_level_info_data()
     states = concat_dfs(cluster.state_df() for cluster in clusters)
     cost_summary, time_stats = aggregate_for_entity(states)
     cluster_dbus = (aggregate(df=states,
@@ -178,7 +218,7 @@ def view_clusters():
 
     return render_template('clusters.html',
                            clusters=clusters,
-                           data=data,
+                           data=level_info_data,
                            cluster_dbus=cluster_dbus,
                            time_stats=time_stats.to_dict("records"))
 

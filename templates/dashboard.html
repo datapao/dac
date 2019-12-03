@@ -62,21 +62,31 @@
 
 
 <script>
-
+    // TODO: fix missing data extraction for charts
     var time_stats = JSON.parse('{{ time_stats | tojson | safe }}');
+    var last7dbu = JSON.parse('{{ last7dbu | tojson | safe }}');
+    var numjobs = JSON.parse('{{ numjobs | tojson | safe }}');
+
+    console.log()
 
     interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    interval_dbu_mean = time_stats.map(({interval_dbu_mean}) => interval_dbu_mean);
     interval_sum = time_stats.map(({interval_sum}) => interval_sum);
+    interval_cumsum = time_stats.map(({interval_cumsum}) => interval_cumsum);
     num_workers_max = time_stats.map(({num_workers_max}) => num_workers_max);
     worker_hours_sum = time_stats.map(({worker_hours_sum}) => worker_hours_sum);
+    jobs_count = numjobs.map(({job_id}) => job_id);
     labels = time_stats.map(({ts}) => ts);
+
+    last_7_dbu = last7dbu.map(({interval_dbu}) => interval_dbu);
+    seven_days_label = last7dbu.map(({ts}) => ts);
 
     chart('chart-dbu-over-time', 'DBU over time', 'DBU', 'line', true, labels, interval_dbu_sum);
     chart('chart-running-time', "Running time (hours)", 'hours', 'line', false, labels, interval_sum);
-    chart('chart-dbu-last7', false, 'Total DBU', 'line', true, labels, interval_dbu_sum);
-    chart('chart-average-dbu', false, 'Avergae DBU', 'line', false, labels, interval_sum);
-    chart('chart-cumulative-cluster-time', false, 'Cumulative Cluster time', 'bar', true, labels, num_workers_max);
-    chart('chart-running-jobs', false, 'Running jobs', 'bar', true, labels, worker_hours_sum);
+    chart('chart-dbu-last7', false, 'Total DBU', 'line', true, seven_days_label, last_7_dbu);
+    chart('chart-average-dbu', false, 'Average DBU', 'line', false, labels, interval_dbu_mean);
+    chart('chart-cumulative-cluster-time', false, 'Cumulative Cluster time', 'line', true, labels, interval_cumsum);
+    chart('chart-running-jobs', false, 'Running jobs', 'bar', true, labels, jobs_count);
 
 </script>
 
