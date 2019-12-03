@@ -11,6 +11,12 @@ def get_time_grouper(col: str, freq='1D') -> pd.Grouper:
     return pd.Grouper(key=col, freq=freq, label="right")
 
 
+def get_time_index(since_days=30):
+    start = since(days=since_days)
+    end = datetime.today()
+    return pd.date_range(start, end, freq="1D", normalize=True)
+
+
 def concat_dfs(dfs):
     dfs = list(dfs)
     return pd.concat(dfs) if len(dfs) else pd.DataFrame()
@@ -53,13 +59,10 @@ def aggregate_over_time(states: pd.DataFrame) -> pd.DataFrame:
     aggregations = {"cluster_id": "nunique",
                     "dbu": "max",
                     "interval": "sum",
-                    "interval_dbu": "sum",
+                    "interval_dbu": ["sum", "mean"],
                     "num_workers": ["min", "max", "median"],
                     "worker_hours": "sum"}
-    index = pd.date_range(since(days=30),
-                          datetime.today(),
-                          freq="1D",
-                          normalize=True)
+    index = get_time_index(since_days=30)
 
     time_stats = (states
                   .groupby(grouper)
