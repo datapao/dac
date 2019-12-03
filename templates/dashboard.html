@@ -5,134 +5,90 @@
 <h1 class="title">Dashboard</h1>
 {% include 'level-info-bar.html' %}
 
+
 <div class="columns">
     <div class="column is-half">
-        <canvas id="chart-daily-price"></canvas>
+        <canvas id="chart-dbu-over-time"></canvas>
     </div>
     <div class="column is-half">
-        <canvas id="chart-clusters"></canvas>
+        <canvas id="chart-running-time"></canvas>
     </div>
 </div>
 <div class="columns">
+        <div class="column is-half">
+            <canvas id="chart-dbu-last7"></canvas>
+        </div>
+        <div class="column is-half">
+            <canvas id="chart-average-dbu"></canvas>
+        </div>
+    </div>
+<div class="columns">
     <div class="column is-half">
-        <canvas id="chart-users"></canvas>
+        <canvas id="chart-cumulative-cluster-time"></canvas>
     </div>
     <div class="column is-half">
-        <canvas id="chart-jobs"></canvas>
+        <canvas id="chart-running-jobs"></canvas>
     </div>
 </div>
+
+<div class="columns">
+        <table class="table is-hoverable is-fullwidth">
+        {% for cluster_type, cluster_list in clusters.items() %}
+            <thead>
+                <tr>
+                    <th colspan=11>{{ cluster_type }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cluster in cluster_list %}
+                <tr>
+                    <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
+                    <td>{{ cluster.state }}</td>
+                    <td>{{ cluster.cluster_id }}</td>
+                    <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
+                    <td>{{ cluster.driver_type }}</td>
+                    <td>{{ cluster.worker_type }}</td>
+                    <td>{{ cluster.num_workers }}</td>
+                    <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
+                    <td>{{ cluster.dbu_cost_per_hour }}</td>
+                    <td>{{ cluster.hw_cost_per_hour }}</td>
+                    <td>{{ cluster.cost_per_hour }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        {% endfor %}
+    </table>
+</div>
+
 
 <script>
-    var ctx = document.getElementById('chart-daily-price').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-            datasets: [{
-                label: 'Daily price',
-                data: [114.65, 400.31, 248.11, 327.67, 401.98, 457.65],
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
+    // TODO: fix missing data extraction for charts
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe }}');
+    var last7dbu = JSON.parse('{{ last7dbu | tojson | safe }}');
+    var numjobs = JSON.parse('{{ numjobs | tojson | safe }}');
 
-    var ctx = document.getElementById('chart-clusters').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-            datasets: [{
-                label: 'Clusters',
-                data: [3, 22, 13, 15, 16, 19],
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
-    var ctx = document.getElementById('chart-users').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-            datasets: [{
-                label: 'Users',
-                data: [25, 31, 31, 34, 70, 76],
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
+    console.log()
 
+    interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    interval_dbu_mean = time_stats.map(({interval_dbu_mean}) => interval_dbu_mean);
+    interval_sum = time_stats.map(({interval_sum}) => interval_sum);
+    interval_cumsum = time_stats.map(({interval_cumsum}) => interval_cumsum);
+    num_workers_max = time_stats.map(({num_workers_max}) => num_workers_max);
+    worker_hours_sum = time_stats.map(({worker_hours_sum}) => worker_hours_sum);
+    jobs_count = numjobs.map(({job_id}) => job_id);
+    labels = time_stats.map(({ts}) => ts);
 
-    function randn(lower, upper, err) {
-        return (Math.random() * (upper - lower)) + lower + err * Math.random();
-    }
+    last_7_dbu = last7dbu.map(({interval_dbu}) => interval_dbu);
+    seven_days_label = last7dbu.map(({ts}) => ts);
 
-    data_scatter = []
-    colors = []
-    for (i = 0; i < 76; i++) {
-        data_scatter.push({
-            x: randn(70 + i, 79 + i * 2, 2),
-            y: randn(200 + i, 270 + i, 20 * i),
-            r: randn(2, 4, 3.5)
-        })
-        colors.push(["#7B8CDE", "#E88D67", "#9999C3"][i % 3])
-    }
-    console.log(["#7B8CDE", "#E88D67", "#9999C3"] * 12)
+    chart('chart-dbu-over-time', 'DBU over time', 'DBU', 'line', true, labels, interval_dbu_sum);
+    chart('chart-running-time', "Running time", 'hours', 'line', false, labels, interval_sum);
+    chart('chart-dbu-last7', 'Last 7 days DBU', 'DBU', 'line', true, seven_days_label, last_7_dbu);
+    chart('chart-average-dbu', 'Average DBU', 'DBU', 'line', false, labels, interval_dbu_mean);
+    chart('chart-cumulative-cluster-time', 'Cumulative Cluster time', 'hours', 'line', true, labels, interval_cumsum);
+    chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);
 
-    var ctx = document.getElementById('chart-jobs').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bubble',
-        data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-            datasets: [{
-                label: 'Jobs',
-                title: "Jobs",
-                data: data_scatter,
-                backgroundColor: colors,
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
-    });
 </script>
+
+
 {% endblock %}

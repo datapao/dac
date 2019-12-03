@@ -125,10 +125,10 @@
     labels = time_stats.map(({ts}) => ts)
     console.log(time_stats)
 
-    chart('chart-price', 'Total DBU', 'bar', true, labels, interval_dbu_sum);
-    chart('chart-clusters', 'Running time (hours)', 'line', false, labels, interval_sum);
-    chart('chart-workers', 'Max workers', 'bar', true, labels, num_workers_max);
-    chart('chart-worker-hours', 'Worker hours', 'bar', true, labels, worker_hours_sum);
+    chart('chart-price', false, 'Total DBU', 'bar', true, labels, interval_dbu_sum);
+    chart('chart-clusters', false, 'Running time (hours)', 'line', false, labels, interval_sum);
+    chart('chart-workers', false, 'Max workers', 'bar', true, labels, num_workers_max);
+    chart('chart-worker-hours', false, 'Worker hours', 'bar', true, labels, worker_hours_sum);
 
 </script>
 {% endblock %}

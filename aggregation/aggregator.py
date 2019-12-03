@@ -7,16 +7,31 @@ def since(days: int) -> datetime:
     return datetime.today() - timedelta(days=days)
 
 
+def get_time_grouper(col: str, freq='1D') -> pd.Grouper:
+    return pd.Grouper(key=col, freq=freq, label="right")
+
+
+def get_time_index(since_days=30):
+    start = since(days=since_days)
+    end = datetime.today()
+    return pd.date_range(start, end, freq="1D", normalize=True)
+
+
+def concat_dfs(dfs):
+    dfs = list(dfs)
+    return pd.concat(dfs) if len(dfs) else pd.DataFrame()
+
+
 def aggregate(df: pd.DataFrame,
               col: str = 'dbu',
               by: list = None,
               aggfunc: str = 'sum',
               since_days: int = None):
 
-    filter = df.state == 'RUNNING'
+    filtered = df.loc[df.state.isin(['RUNNING'])]
     if since_days is not None:
-        filter &= df.timestamp > since(since_days)
-    running = df.loc[filter].copy()
+        filtered = df.loc[df.timestamp >= since(since_days)]
+    running = filtered.copy()
 
     # No grouping: return the value
     if by is None:
@@ -26,49 +41,28 @@ def aggregate(df: pd.DataFrame,
     return running.groupby(by).agg({col: aggfunc})
 
 
-def sum_dbu(df: pd.DataFrame, by: list = None, since_days: int = None):
-    """Returns the sum of dbus.
-    If by parameter is specified, group the result by the specified columns,
-    if since_days is present the results will be limited to the specified
-    interval. If no grouping columns are specified a number will be returned
-    otherwise a pandas DataFrame.
+def get_cluster_dbus(clusters: pd.DataFrame, ids=None):
+    if ids is not None:
+        clusters = clusters.loc[clusters.cluster_id.isin(ids)]
 
-    Parameters:
-    -----------
-    df : pd.DataFrame
-        DF containing the parsed states
-    by : list or str
-        Column name(s) to use as grouping cols
-    since_days : int
-        Time limit: the number of days from today to include
+    last_setups = (clusters
+                   .loc[clusters.state.isin(['RUNNING'])]
+                   .sort_values('timestamp')
+                   .groupby('cluster_id')
+                   .tail(1))
 
-    Returns:
-    --------
-    dbu : float or pd.DataFrame
-        Summed up DBU usage.
-    """
-    result = aggregate(df=df.assign(cost=df.dbu * df.interval),
-                       col='cost',
-                       by=by,
-                       since_days=since_days)
-
-    if isinstance(result, pd.DataFrame):
-        result = result.rename(columns={'cost': 'dbu'})
-
-    return result
+    return last_setups.dbu.sum()
 
 
 def aggregate_over_time(states: pd.DataFrame) -> pd.DataFrame:
-    grouper = pd.Grouper(key="timestamp", freq="1D", label="right")
-    aggregations = {"dbu": "max",
+    grouper = get_time_grouper("timestamp")
+    aggregations = {"cluster_id": "nunique",
+                    "dbu": "max",
                     "interval": "sum",
-                    "interval_dbu": "sum",
+                    "interval_dbu": ["sum", "mean"],
                     "num_workers": ["min", "max", "median"],
                     "worker_hours": "sum"}
-    index = pd.date_range(since(days=30),
-                          datetime.today(),
-                          freq="1D",
-                          normalize=True)
+    index = get_time_index(since_days=30)
 
     time_stats = (states
                   .groupby(grouper)
@@ -84,12 +78,13 @@ def aggregate_over_time(states: pd.DataFrame) -> pd.DataFrame:
 def aggregate_for_entity(states: pd.DataFrame):
     states = (states
               .assign(worker_hours=states["interval"] * states["num_workers"])
-              .fillna(0))
+              .fillna(0)
+              .loc[states['state'].isin(['RUNNING'])])
 
     time_stats = aggregate_over_time(states)
 
     weekly_cost_stats = (time_stats
-                         .loc[:since(days=7),
+                         .loc[since(days=7):,
                               ["interval_dbu_sum", "interval_sum"]]
                          .sum())
     weekly_cost_stats.index = [f"weekly_{p}" for p in weekly_cost_stats.index]
