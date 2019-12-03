@@ -82,11 +82,11 @@
     seven_days_label = last7dbu.map(({ts}) => ts);
 
     chart('chart-dbu-over-time', 'DBU over time', 'DBU', 'line', true, labels, interval_dbu_sum);
-    chart('chart-running-time', "Running time (hours)", 'hours', 'line', false, labels, interval_sum);
-    chart('chart-dbu-last7', false, 'Total DBU', 'line', true, seven_days_label, last_7_dbu);
-    chart('chart-average-dbu', false, 'Average DBU', 'line', false, labels, interval_dbu_mean);
-    chart('chart-cumulative-cluster-time', false, 'Cumulative Cluster time', 'line', true, labels, interval_cumsum);
-    chart('chart-running-jobs', false, 'Running jobs', 'bar', true, labels, jobs_count);
+    chart('chart-running-time', "Running time", 'hours', 'line', false, labels, interval_sum);
+    chart('chart-dbu-last7', 'Last 7 days DBU', 'DBU', 'line', true, seven_days_label, last_7_dbu);
+    chart('chart-average-dbu', 'Average DBU', 'DBU', 'line', false, labels, interval_dbu_mean);
+    chart('chart-cumulative-cluster-time', 'Cumulative Cluster time', 'hours', 'line', true, labels, interval_cumsum);
+    chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);
 
 </script>
 
