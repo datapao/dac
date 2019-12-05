@@ -16,6 +16,24 @@ engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
 
 
+class User(Base):
+    __tablename__ = 'users'
+    user_id = Column(String, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"),
+                          primary_key=True)
+    username = Column(String, nullable=False)
+    name = Column(String)
+    is_active = Column(Boolean)
+    groups = Column(JSON(String))
+    primary_email = Column(String)
+    emails = Column(JSON(String))
+    workspace = relationship("Workspace")
+
+    def state_df(self):
+        df = self.workspace.state_df()
+        return df.loc[df.user_id == self.username] if not df.empty else df
+
+
 class Cluster(Base):
     __tablename__ = "clusters"
     cluster_id = Column(String, primary_key=True)
@@ -27,7 +45,8 @@ class Cluster(Base):
     worker_type = Column(String)
     num_workers = Column(Integer)
     spark_version = Column(String, nullable=False)
-    creator_user_name = Column(String, nullable=False)
+    creator_user_name = Column(String, ForeignKey("users.username"),
+                               nullable=False)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
     workspace = relationship("Workspace")
     autotermination_minutes = Column(Integer)
@@ -35,7 +54,7 @@ class Cluster(Base):
     enable_elastic_disk = Column(Boolean)
     last_activity_time = Column(DateTime)
     last_state_loss_time = Column(DateTime)
-    pinned_by_user_name = Column(String)
+    pinned_by_user_name = Column(String, ForeignKey("users.username"))
     spark_context_id = Column(BigInteger)
     spark_version = Column(String)
     start_time = Column(DateTime, nullable=False)
@@ -61,8 +80,7 @@ class Cluster(Base):
         return df
 
     def users(self):
-        # TODO: inactive users won't be available
-        return list({state.user_id for state in self.cluster_states})
+        return self.workspace.users
 
     def dbu_per_hour(self):
         df = self.state_df()
@@ -78,6 +96,7 @@ class Workspace(Base):
     type = Column(String, nullable=False)
     token = Column(String, nullable=False)
     clusters = relationship(Cluster)
+    users = relationship(User)
 
     def active_clusters(self):
         return [cluster for cluster in self.clusters
@@ -87,7 +106,8 @@ class Workspace(Base):
         clusters = self.clusters if not active_only else self.active_clusters()
 
         if not clusters:
-            return pd.DataFrame()
+            columns = ClusterStates.__attributes__ + ['interval_dbu']
+            return pd.DataFrame(columns=columns)
 
         df = (pd.concat(cluster.state_df() for cluster in clusters)
               .sort_values('timestamp')
@@ -95,17 +115,11 @@ class Workspace(Base):
 
         return df
 
-    def users(self):
-        # TODO: inactive users won't be available
-        return list({user
-                     for cluster in self.clusters
-                     for user in cluster.users()})
-
 
 class Event(Base):
     __tablename__ = "events"
-    cluster_id = Column(String, ForeignKey(
-        "clusters.cluster_id"), primary_key=True)
+    cluster_id = Column(String, ForeignKey("clusters.cluster_id"),
+                        primary_key=True)
     timestamp = Column(DateTime, primary_key=True)
     details = Column(JSON, nullable=False)
     type = Column(String, nullable=False)
@@ -133,7 +147,8 @@ class Job(Base):
     __tablename__ = "jobs"
     job_id = Column(BigInteger, primary_key=True)
     created_time = Column(DateTime, primary_key=True)
-    creator_user_name = Column(String, nullable=False)
+    creator_user_name = Column(String, ForeignKey("users.username"),
+                               nullable=False)
     name = Column(String, nullable=False)
     timeout_seconds = Column(Integer, nullable=False)
     email_notifications = Column(JSON, nullable=False)
@@ -154,8 +169,8 @@ class JobRun(Base):
     run_id = Column(BigInteger, primary_key=True)
     number_in_job = Column(Integer)
     original_attempt_run_id = Column(Integer)
-    workspace_id = Column(String, ForeignKey(
-        "workspaces.id"), primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"),
+                          primary_key=True)
     workspace = relationship(Workspace)
     cluster_spec = Column(JSON, nullable=False)
     cluster_instance_id = Column(String, nullable=False)
@@ -191,6 +206,7 @@ class ScraperRun(Base):
     num_events = Column(Integer, nullable=False)
     num_jobs = Column(Integer, nullable=False)
     num_job_runs = Column(Integer, nullable=False)
+    num_users = Column(Integer, nullable=False)
 
     def start(self):
         self.start_time = datetime.now()
@@ -224,14 +240,18 @@ class ScraperRun(Base):
         elif right.start_time is None:
             start_time = left.start_time
         else:
-            start_time = left.start_time if left.start_time < right.start_time else right.start_time
+            start_time = (left.start_time
+                          if left.start_time < right.start_time
+                          else right.start_time)
         end_time = None
         if left.end_time is None:
             end_time = right.end_time
         elif right.end_time is None:
             end_time = left.end_time
         else:
-            end_time = left.end_time if left.end_time > right.end_time else right.end_time
+            end_time = (left.end_time
+                        if left.end_time > right.end_time
+                        else right.end_time)
 
         return ScraperRun(
             start_time=start_time,
@@ -242,7 +262,8 @@ class ScraperRun(Base):
             num_clusters=left.num_clusters + right.num_clusters,
             num_events=left.num_events + right.num_events,
             num_jobs=left.num_jobs + right.num_jobs,
-            num_job_runs=left.num_job_runs + right.num_job_runs
+            num_job_runs=left.num_job_runs + right.num_job_runs,
+            num_users=left.num_users + right.num_users,
         )
 
     def empty() -> "ScraperRun":
@@ -251,17 +272,16 @@ class ScraperRun(Base):
             num_clusters=0,
             num_events=0,
             num_jobs=0,
-            num_job_runs=0
+            num_job_runs=0,
+            num_users=0,
         )
 
 
 class ClusterStates(Base):
     __tablename__ = "cluster_states"
-    cluster_id = Column(String, ForeignKey(
-        "clusters.cluster_id"), primary_key=True)
-    cluster = relationship(Cluster)
-    # should be foreign key to users table
-    user_id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.username"), primary_key=True)
+    cluster_id = Column(String, ForeignKey("clusters.cluster_id"),
+                        primary_key=True)
     timestamp = Column(DateTime, primary_key=True)
     state = Column(String, primary_key=True)
     driver_type = Column(String)
@@ -269,6 +289,12 @@ class ClusterStates(Base):
     num_workers = Column(Integer)
     dbu = Column(Float)
     interval = Column(Float, nullable=False)
+    # workspace_id = Column(String, ForeignKey("workspaces.id"))
+    cluster = relationship(Cluster)
+
+    __attributes__ = ["user_id", "cluster_id", "timestamp", "state",
+                      "driver_type", "worker_type", "num_workers",
+                      "dbu", "interval"]
 
     def __str__(self):
         return (f"ClusterState["
@@ -282,10 +308,7 @@ class ClusterStates(Base):
         return self.__str__()
 
     def to_dict(self):
-        attributes = ["user_id", "cluster_id", "timestamp", "state",
-                      "driver_type", "worker_type", "num_workers",
-                      "dbu", "interval"]
-        return {attr: getattr(self, attr) for attr in attributes}
+        return {attr: getattr(self, attr) for attr in self.__attributes__}
 
 
 def create_db():
