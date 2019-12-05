@@ -1,4 +1,48 @@
 {% extends "index.html" %}
 {% block content %}
+
 <h1 class="title">Users</h1>
+
+{% include 'level-info-bar.html' %}
+
+
+<!-- TODO: Insert charts here -->
+
+
+<div class="columns">
+    <table class="table is-hoverable is-fullwidth">
+    {% for workspace, user_list in users.items() %}
+        <thead>
+            <tr>
+                <th colspan=6><a href={{ url_for("view_workspace", workspace_id=workspace.id) }}>{{ workspace.name }}</a></th>
+            </tr>
+            <tr>
+                    <th>User ID</th>
+                    <th>Username</th>
+                    <th>Full name</th>
+                    <th>Primary e-mail</th>
+                    <th>E-mails</th>
+                    <th>DBUs used last 7 days</th>
+                </tr>
+        </thead>
+        <tbody>
+            {% for (user, dbu) in user_list %}
+            <tr>
+                <td><a href={{ url_for("view_user", workspace_id=workspace.id, user_id=user.user_id) }}>{{ user.user_id }}</a></td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.name }}</td>
+                <td>{{ user.primary_email }}</td>
+                <td>{{ user.emails }}</td>
+                <td>{{ dbu  | round(2, 'common') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    {% endfor %}
+    </table>
+</div>
+
+<script>
+    // TODO: Insert chart data generation here
+</script>
+
 {% endblock %}

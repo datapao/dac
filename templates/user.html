@@ -1,0 +1,65 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">User {{ user.workspace_id }} / {{ user.user_id }}</h1>
+<h1 class="subtitle">User {{ user.username }}</h1>
+<div class="columns">
+    <div class="column">
+        <h1 class="title is-3">Details</h1>
+        <table class="table">
+            <tr>
+                <th>Workspace</th>
+                <td><a href={{ url_for("view_workspace", workspace_id=user.workspace_id) }}>{{ user.workspace_id }}</a></td>
+            </tr>
+            <tr>
+                <th>User ID</th>
+                <td>{{user.user_id}}</td>
+            </tr>
+            <tr>
+                <th>Username</th>
+                <td>{{ user.username }}</td>
+            </tr>
+            <tr>
+                <th>Full name</th>
+                <td>{{ user.name }}</td>
+            </tr>
+            <tr>
+                <th>Primary e-mail</th>
+                <td>{{ user.primary_email}}</td>
+            </tr>
+            <tr>
+                <th>E-mails</th>
+                {% for email in user_emails %}
+                <td>{{ email }}</td>
+                {% endfor %}
+            </tr>
+        </table>
+    </div>
+
+    <div class="column">
+        <h1 class="title is-3">Cluster usage</h1>
+        <table class="table">
+            <tr>
+                <th>Running time (total)</th>
+                <td>{{cost.interval | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (total)</th>
+                <td>{{cost.interval_dbu | round(1, 'common')}}</td>
+            </tr>
+            <tr>
+                <th>Running time (7 days)</th>
+                <td>{{cost.weekly_interval_sum | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (7 days)</th>
+                <td>{{cost.weekly_interval_dbu_sum | round(1, 'common')}}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- TODO: add chart -->
+
+{% endblock %}

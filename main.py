@@ -1,7 +1,8 @@
 import argparse
 import configparser
-import logging
 import functools
+import json
+import logging
 
 from datetime import datetime, timedelta
 
@@ -13,7 +14,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, aggregate_for_entity
-from db import engine_url, create_db, Base, Workspace, Cluster, Job, ScraperRun
+from db import engine_url, create_db, Base, Workspace, Cluster, Job, User, ScraperRun
 from scraping import scrape, start_scheduled_scraping
 
 
@@ -42,7 +43,7 @@ def get_level_info_data():
     workspace_count = workspaces.count()
     cluster_count = sum([len(workspace.active_clusters())
                          for workspace in workspaces])
-    user_count = sum([len(workspace.users()) for workspace in workspaces])
+    user_count = sum([len(workspace.users) for workspace in workspaces])
     actives = concat_dfs(workspace.state_df(active_only=True)
                          for workspace in workspaces)
 
@@ -179,9 +180,48 @@ def view_alerts():
     return render_template('alerts.html')
 
 
+# TODO: add chart data generation
 @app.route('/users')
 def view_users():
-    return render_template('users.html')
+    session = create_session()
+    users = session.query(User).all()
+
+    level_info_data = get_level_info_data()
+
+    users_by_workspace = {}
+    for user in users:
+        dbu = aggregate(df=user.state_df(), col='interval_dbu', since_days=7)
+        users_by_workspace.setdefault(user.workspace, []).append((user, dbu))
+
+    for workspace, user_list in users_by_workspace.items():
+        users_by_workspace[workspace] = sorted(user_list,
+                                               key=lambda x: x[1],
+                                               reverse=True)
+
+    return render_template('users.html',
+                           users=users_by_workspace,
+                           data=level_info_data)
+
+
+# TODO: add chart data generation
+@app.route('/workspaces/<string:workspace_id>/users/<string:user_id>')
+def view_user(workspace_id, user_id):
+    session = create_session()
+    user = (session
+            .query(User)
+            .filter(User.workspace_id == workspace_id)
+            .filter(User.user_id == user_id)
+            .one())
+    states = user.state_df()
+    user_emails = json.loads(user.emails)
+
+    cost_summary, time_stats = aggregate_for_entity(states)
+
+    return render_template('user.html',
+                           user=user,
+                           user_emails=user_emails,
+                           cost=cost_summary.to_dict(),
+                           time_stats=time_stats.to_dict("records"))
 
 
 @app.route('/clusters/<string:cluster_id>')
