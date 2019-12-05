@@ -18,20 +18,29 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    user_id = Column(String, primary_key=True)
-    workspace_id = Column(String, ForeignKey("workspaces.id"),
-                          primary_key=True)
-    username = Column(String, nullable=False)
+    user_id = Column(String, nullable=False)
+    username = Column(String, primary_key=True)
     name = Column(String)
     is_active = Column(Boolean)
     groups = Column(JSON(String))
     primary_email = Column(String)
     emails = Column(JSON(String))
-    workspace = relationship("Workspace")
+    user_workspaces = relationship("UserWorkspace")
 
     def state_df(self):
-        df = self.workspace.state_df()
+        df = (pd.concat([workspace.state_df() for workspace in
+                         self.user_workspaces.workspace])
+              .sort_values('timestamp'))
         return df.loc[df.user_id == self.username] if not df.empty else df
+
+
+class UserWorkspace(Base):
+    __tablename__ = 'user_workspaces'
+    username = Column(String, ForeignKey("users.username"),
+                      primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"),
+                          primary_key=True)
+    workspace = relationship('Workspace')
 
 
 class Cluster(Base):
@@ -68,6 +77,7 @@ class Cluster(Base):
     spark_env_vars = Column(JSON)
     events = relationship("Event")
     cluster_states = relationship("ClusterStates")
+    user_workspaces = relationship("UserWorkspace")
 
     def eventFilterNot(self, types):
         return [e for e in self.events if e.type not in types]
@@ -80,7 +90,7 @@ class Cluster(Base):
         return df
 
     def users(self):
-        return self.workspace.users
+        return self.user_workspaces.users
 
     def dbu_per_hour(self):
         df = self.state_df()

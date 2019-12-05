@@ -180,6 +180,28 @@ def view_alerts():
 
 
 # TODO: add chart data generation
+# @app.route('/users')
+# def view_users():
+#     session = create_session()
+#     users = session.query(User).all()
+#
+#     level_info_data = get_level_info_data()
+#
+#     users_by_workspace = {}
+#     for user in users:
+#         dbu = aggregate(df=user.state_df(), col='interval_dbu', since_days=7)
+#         users_by_workspace.setdefault(user.workspace, []).append((user, dbu))
+#
+#     for workspace, user_list in users_by_workspace.items():
+#         users_by_workspace[workspace] = sorted(user_list,
+#                                                key=lambda x: x[1],
+#                                                reverse=True)
+#
+#     return render_template('users.html',
+#                            users=users_by_workspace,
+#                            data=level_info_data)
+
+
 @app.route('/users')
 def view_users():
     session = create_session()

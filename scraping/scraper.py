@@ -179,12 +179,11 @@ def scrape_jobs(workspace, job_dict, session, api, result):
               f"Runs scraped: {len(job_runs)}")
 
 
-def scrape_user(workspace, user_dict, session, result):
+def scrape_user(user_dict, session, result):
     log.debug(f"Scraping user, id: {user_dict['id']}")
     name_dict = user_dict.get('name', {})
     user = User(
         user_id=user_dict['id'],
-        workspace_id=workspace.id,
         username=user_dict.get('userName', 'UNKOWN'),
         name=' '.join([name_dict.get('givenName', ''),
                        name_dict.get('familyName', '')]),
@@ -216,8 +215,10 @@ def scrape_users(workspace, session, result):
     raw = json.loads(resp.text) if resp.text else {}
     users = raw.get('Resources', [])
 
-    for user in users:
-        scrape_user(workspace, user, session, result)
+    uniq_users = {user['userName']: user for user in users}
+    for username, user in uniq_users:
+        scrape_user(user, session, result)
+        UserWorkspace(username=username, workspace_id=user[workspace.id])
 
     log.debug(f"Finished users scraping for workspace: {workspace.name}. "
               f"Users scraped: {len(users)}")
