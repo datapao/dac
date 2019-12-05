@@ -41,7 +41,10 @@ def aggregate(df: pd.DataFrame,
     return running.groupby(by).agg({col: aggfunc})
 
 
-def get_cluster_dbus(clusters: pd.DataFrame, ids=None):
+def get_cluster_dbus(clusters: pd.DataFrame, ids: list = None) -> float:
+    if clusters.empty:
+        return 0.0
+
     if ids is not None:
         clusters = clusters.loc[clusters.cluster_id.isin(ids)]
 
