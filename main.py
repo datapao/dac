@@ -1,7 +1,6 @@
 import argparse
 import configparser
 import functools
-import json
 import logging
 
 from datetime import datetime, timedelta
@@ -213,13 +212,11 @@ def view_user(workspace_id, user_id):
             .filter(User.user_id == user_id)
             .one())
     states = user.state_df()
-    user_emails = json.loads(user.emails)
 
     cost_summary, time_stats = aggregate_for_entity(states)
 
     return render_template('user.html',
                            user=user,
-                           user_emails=user_emails,
                            cost=cost_summary.to_dict(),
                            time_stats=time_stats.to_dict("records"))
 
