@@ -14,7 +14,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
-from db import Base, Cluster, Workspace, Event, Job, JobRun, User
+from db import Base, Cluster, Workspace, Event, Job, JobRun, User, UserWorkspace
 from db import ScraperRun, ClusterStates
 from scraping.parser import parse_events, query_instance_types
 
@@ -183,23 +183,21 @@ def scrape_user(workspace, user_dict, session, result):
     log.debug(f"Scraping user, id: {user_dict['id']}")
     name_dict = user_dict.get('name', {})
     user = User(
-        user_id=user_dict['id'],
-        workspace_id=workspace.id,
         username=user_dict.get('userName', 'UNKOWN'),
         name=' '.join([name_dict.get('givenName', ''),
                        name_dict.get('familyName', '')]),
         is_active=user_dict.get('active'),
-        groups=', '.join(group.get('$ref', '')
-                         for group in user_dict['groups']),
         primary_email=list({email.get('value', '')
                             for email in user_dict['emails']
                             if email['primary']})[0],
-        emails=', '.join(email.get('value', '')
-                         for email in user_dict['emails'])
     )
-
     session.merge(user)
     result.num_users += 1
+
+    user_workspace = UserWorkspace(user_id=user_dict['id'],
+                                   username=user.username,
+                                   workspace_id=workspace.id)
+    session.merge(user_workspace)
 
 
 def scrape_users(workspace, session, result):
@@ -216,7 +214,8 @@ def scrape_users(workspace, session, result):
     raw = json.loads(resp.text) if resp.text else {}
     users = raw.get('Resources', [])
 
-    for user in users:
+    uniq_users = {user['userName']: user for user in users}
+    for username, user in uniq_users.items():
         scrape_user(workspace, user, session, result)
 
     log.debug(f"Finished users scraping for workspace: {workspace.name}. "
@@ -314,6 +313,7 @@ def scrape():
     for workspace in get_workspaces():
         result = scrape_workspace(workspace, session, instance_types)
         scraping_results.append(result)
+        session.commit()
 
     final_result = functools.reduce(
         ScraperRun.merge, scraping_results, ScraperRun.empty())

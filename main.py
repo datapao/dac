@@ -13,7 +13,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, aggregate_for_entity
-from db import engine_url, create_db, Base, Workspace, Cluster, Job, User, ScraperRun
+from db import engine_url, create_db, Base
+from db import Workspace, Cluster, Job, User, ScraperRun
 from scraping import scrape, start_scheduled_scraping
 
 
@@ -42,7 +43,7 @@ def get_level_info_data():
     workspace_count = workspaces.count()
     cluster_count = sum([len(workspace.active_clusters())
                          for workspace in workspaces])
-    user_count = sum([len(workspace.users) for workspace in workspaces])
+    user_count = sum([len(workspace.users()) for workspace in workspaces])
     actives = concat_dfs(workspace.state_df(active_only=True)
                          for workspace in workspaces)
 
@@ -94,6 +95,7 @@ def get_last_7_days_dbu(states: pd.DataFrame) -> dict:
     return last7dbu_dict
 
 
+# ======= DASHBOARD =======
 @app.route('/')
 def view_dashboard():
     session = create_session()
@@ -122,6 +124,7 @@ def view_dashboard():
                            data=level_info_data)
 
 
+# ======= WORKSPACE =======
 @app.route('/workspaces/<string:workspace_id>')
 def view_workspace(workspace_id):
     session = create_session()
@@ -168,59 +171,21 @@ def view_workspace(workspace_id):
 def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
+
     level_info_data = get_level_info_data()
+
+    users_by_workspaces = {}
+    for workspace in workspaces:
+        users = [uw.user for uw in workspace.user_workspaces]
+        users_by_workspaces.setdefault(workspace.name, []).extend(users)
+
     return render_template('workspaces.html',
                            workspaces=workspaces,
+                           users_by_workspaces=users_by_workspaces,
                            data=level_info_data)
 
 
-@app.route('/alerts')
-def view_alerts():
-    return render_template('alerts.html')
-
-
-# TODO: add chart data generation
-@app.route('/users')
-def view_users():
-    session = create_session()
-    users = session.query(User).all()
-
-    level_info_data = get_level_info_data()
-
-    users_by_workspace = {}
-    for user in users:
-        dbu = aggregate(df=user.state_df(), col='interval_dbu', since_days=7)
-        users_by_workspace.setdefault(user.workspace, []).append((user, dbu))
-
-    for workspace, user_list in users_by_workspace.items():
-        users_by_workspace[workspace] = sorted(user_list,
-                                               key=lambda x: x[1],
-                                               reverse=True)
-
-    return render_template('users.html',
-                           users=users_by_workspace,
-                           data=level_info_data)
-
-
-# TODO: add chart data generation
-@app.route('/workspaces/<string:workspace_id>/users/<string:user_id>')
-def view_user(workspace_id, user_id):
-    session = create_session()
-    user = (session
-            .query(User)
-            .filter(User.workspace_id == workspace_id)
-            .filter(User.user_id == user_id)
-            .one())
-    states = user.state_df()
-
-    cost_summary, time_stats = aggregate_for_entity(states)
-
-    return render_template('user.html',
-                           user=user,
-                           cost=cost_summary.to_dict(),
-                           time_stats=time_stats.to_dict("records"))
-
-
+#  ======= CLUSTER =======
 @app.route('/clusters/<string:cluster_id>')
 def view_cluster(cluster_id):
     session = create_session()
@@ -260,6 +225,68 @@ def view_clusters():
                            time_stats=time_stats.to_dict("records"))
 
 
+#  ======= USER =======
+@app.route('/users/<string:username>')
+def view_user(username):
+    session = create_session()
+    user = (session
+            .query(User)
+            .filter(User.username == username)
+            .one())
+    states = user.state_df()
+
+    cost_summary, time_stats = aggregate_for_entity(states)
+
+    return render_template('user.html',
+                           user=user,
+                           cost=cost_summary.to_dict(),
+                           time_stats=time_stats.to_dict("records"))
+
+
+@app.route('/users')
+def view_users():
+    session = create_session()
+    users = session.query(User).all()
+    level_info_data = get_level_info_data()
+
+    for user in users:
+        user.dbu = aggregate(df=user.state_df(),
+                             col='interval_dbu',
+                             since_days=7)
+    users = sorted(users, key=lambda x: x.dbu, reverse=True)
+    states = concat_dfs(user.state_df() for user in users)
+
+    # Average active users
+    active_users = (aggregate(df=states,
+                              col='user_id',
+                              by=get_time_grouper('timestamp'),
+                              aggfunc='nunique',
+                              since_days=7)
+                    .reindex(get_time_index(7), fill_value=0))
+    active_users['ts'] = active_users.index.format()
+
+    # Average used DBU
+    dbus = (aggregate(df=states,
+                      col='interval_dbu',
+                      by=get_time_grouper('timestamp'),
+                      aggfunc='sum',
+                      since_days=7)
+            .reindex(get_time_index(7), fill_value=0))
+    active_users['sum_dbus'] = dbus.interval_dbu
+    active_users['average_dbu'] = ((active_users.sum_dbus
+                                    / active_users.user_id)
+                                   .fillna(0.))
+
+    print(active_users)
+    print(dbus)
+
+    return render_template('users.html',
+                           users=users,
+                           active_users=active_users.to_dict('records'),
+                           data=level_info_data)
+
+
+#  ======= SCRAPE RUNS =======
 @app.route('/scrape_runs')
 def view_scrape_runs():
     session = create_session()
@@ -275,6 +302,12 @@ def view_scrape_runs():
 
 def format_datetime(value):
     return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+#  ======= ALERTS =======
+@app.route('/alerts')
+def view_alerts():
+    return render_template('alerts.html')
 
 
 app.jinja_env.filters['datetime'] = format_datetime

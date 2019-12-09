@@ -2,19 +2,24 @@
 {% block content %}
 
 
-<h1 class="title">User {{ user.workspace_id }} / {{ user.user_id }}</h1>
-<h1 class="subtitle">User {{ user.username }}</h1>
+<h1 class="title">User {{ user.username }}</h1>
+
+
 <div class="columns">
     <div class="column">
         <h1 class="title is-3">Details</h1>
         <table class="table">
             <tr>
-                <th>Workspace</th>
-                <td><a href={{ url_for("view_workspace", workspace_id=user.workspace_id) }}>{{ user.workspace_id }}</a></td>
-            </tr>
-            <tr>
-                <th>User ID</th>
-                <td>{{user.user_id}}</td>
+                <th>Workspaces</th>
+                <td>
+                    <table>
+                        {% for workspace in user.user_workspaces%}
+                        <tr>
+                            <td><a href={{ url_for("view_workspace", workspace_id=workspace.workspace_id) }}>{{ workspace.workspace.name }}</a></td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </td>
             </tr>
             <tr>
                 <th>Username</th>
@@ -27,10 +32,6 @@
             <tr>
                 <th>Primary e-mail</th>
                 <td>{{ user.primary_email}}</td>
-            </tr>
-            <tr>
-                <th>E-mails</th>
-                <td>{{ user.emails }}</td>
             </tr>
         </table>
     </div>
@@ -58,6 +59,29 @@
     </div>
 </div>
 
-<!-- TODO: add chart -->
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-dbus"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-runtime"></canvas>
+    </div>
+</div>
+
+
+<script>
+
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+
+    interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum)
+    interval_sum = time_stats.map(({interval_sum}) => interval_sum)
+    labels = time_stats.map(({ts}) => ts)
+
+    chart('chart-dbus', false, 'Total DBU', 'line', true, labels, interval_dbu_sum);
+    chart('chart-runtime', false, 'Running time (hours)', 'line', false, labels, interval_sum);
+
+</script>
+
 
 {% endblock %}
