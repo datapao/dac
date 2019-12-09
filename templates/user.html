@@ -1,0 +1,87 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">User {{ user.username }}</h1>
+
+
+<div class="columns">
+    <div class="column">
+        <h1 class="title is-3">Details</h1>
+        <table class="table">
+            <tr>
+                <th>Workspaces</th>
+                <td>
+                    <table>
+                        {% for workspace in user.user_workspaces%}
+                        <tr>
+                            <td><a href={{ url_for("view_workspace", workspace_id=workspace.workspace_id) }}>{{ workspace.workspace.name }}</a></td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <th>Username</th>
+                <td>{{ user.username }}</td>
+            </tr>
+            <tr>
+                <th>Full name</th>
+                <td>{{ user.name }}</td>
+            </tr>
+            <tr>
+                <th>Primary e-mail</th>
+                <td>{{ user.primary_email}}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="column">
+        <h1 class="title is-3">Cluster usage</h1>
+        <table class="table">
+            <tr>
+                <th>Running time (total)</th>
+                <td>{{cost.interval | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (total)</th>
+                <td>{{cost.interval_dbu | round(1, 'common')}}</td>
+            </tr>
+            <tr>
+                <th>Running time (7 days)</th>
+                <td>{{cost.weekly_interval_sum | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (7 days)</th>
+                <td>{{cost.weekly_interval_dbu_sum | round(1, 'common')}}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-dbus"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-runtime"></canvas>
+    </div>
+</div>
+
+
+<script>
+
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+
+    interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum)
+    interval_sum = time_stats.map(({interval_sum}) => interval_sum)
+    labels = time_stats.map(({ts}) => ts)
+
+    chart('chart-dbus', false, 'Total DBU', 'line', true, labels, interval_dbu_sum);
+    chart('chart-runtime', false, 'Running time (hours)', 'line', false, labels, interval_sum);
+
+</script>
+
+
+{% endblock %}

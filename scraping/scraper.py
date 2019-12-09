@@ -4,7 +4,9 @@ import logging
 import os
 import threading
 import time
+import json
 
+import requests
 import pandas as pd
 
 from databricks_api import DatabricksAPI
@@ -12,7 +14,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
-from db import Base, Cluster, Workspace, Event, Job, JobRun
+from db import Base, Cluster, Workspace, Event, Job, JobRun, User, UserWorkspace
 from db import ScraperRun, ClusterStates
 from scraping.parser import parse_events, query_instance_types
 
@@ -46,8 +48,8 @@ def to_time(t):
 
 
 def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result):
-    log.debug("Scraping cluster: %s (%s)",
-              cluster_dict["cluster_name"], cluster_dict["state"])
+    log.debug(f"Scraping cluster: {cluster_dict['cluster_name']} "
+              f"({cluster_dict['state']})")
     cluster = Cluster(
         cluster_id=cluster_dict["cluster_id"],
         cluster_name=cluster_dict["cluster_name"],
@@ -85,15 +87,15 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
 
     session.merge(cluster)
     result.num_clusters += 1
-    log.debug("Started scraping events for cluster %s", cluster.cluster_name)
+    log.debug(f"Started scraping events for cluster {cluster.cluster_name}")
     events = (api.cluster
               .get_events(cluster_id=cluster.cluster_id)
               .get('events', []))
     for event in events:
         scrape_event(cluster, event, session, api, result)
 
-    log.debug("Finished scraping events for cluster %s. Events: %d",
-              cluster.cluster_name, len(events))
+    log.debug(f"Finished scraping events for cluster {cluster.cluster_name}. "
+              f"Events: {len(events)}")
 
     # CLUSTER STATE PARSING
     # TODO: Events are not commited yet, so we cannot parse them.
@@ -111,8 +113,9 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
 
 
 def scrape_job_run(workspace, job_run_dict, session, result):
-    log.debug("Scraping job run in workspace: %s job (%s) run id: %s",
-              workspace.name, job_run_dict["job_id"], job_run_dict["run_id"])
+    log.debug(f"Scraping job run in workspace: {workspace.name} "
+              f"job ({job_run_dict['job_id']}) "
+              f"run id: {job_run_dict['run_id']}")
     instance = job_run_dict["cluster_instance"]
     state = job_run_dict["state"]
     job_run = JobRun(
@@ -143,7 +146,7 @@ def scrape_job_run(workspace, job_run_dict, session, result):
 
 
 def scrape_jobs(workspace, job_dict, session, api, result):
-    log.debug("Scraping job, id: %s", job_dict["job_id"])
+    log.debug(f"Scraping job, id: {job_dict['job_id']}")
     job = Job(
         job_id=job_dict["job_id"],
         created_time=to_time(job_dict["created_time"]),
@@ -169,11 +172,54 @@ def scrape_jobs(workspace, job_dict, session, api, result):
     job_runs_response = api.jobs.list_runs(
         job_id=job_dict["job_id"], limit=120)
     job_runs = job_runs_response.get("runs", [])
-    log.debug("Scraping job runs for job_id: %s", job_dict["job_id"])
+    log.debug(f"Scraping job runs for job_id: {job_dict['job_id']}")
     for job_run in job_runs:
         scrape_job_run(workspace, job_run, session, result)
-    log.debug("Finished job_run scraping for job_id: %s. Runs scraped: %d",
-              job_dict["job_id"], len(job_runs))
+    log.debug(f"Finished job_run scraping for job_id: {job_dict['job_id']}. "
+              f"Runs scraped: {len(job_runs)}")
+
+
+def scrape_user(workspace, user_dict, session, result):
+    log.debug(f"Scraping user, id: {user_dict['id']}")
+    name_dict = user_dict.get('name', {})
+    user = User(
+        username=user_dict.get('userName', 'UNKOWN'),
+        name=' '.join([name_dict.get('givenName', ''),
+                       name_dict.get('familyName', '')]),
+        is_active=user_dict.get('active'),
+        primary_email=list({email.get('value', '')
+                            for email in user_dict['emails']
+                            if email['primary']})[0],
+    )
+    session.merge(user)
+    result.num_users += 1
+
+    user_workspace = UserWorkspace(user_id=user_dict['id'],
+                                   username=user.username,
+                                   workspace_id=workspace.id)
+    session.merge(user_workspace)
+
+
+def scrape_users(workspace, session, result):
+    log.debug(f"Scraping users for {workspace.name} workspace.")
+
+    url, *_ = workspace.url.rsplit('/', 1)
+    api_path = f"https://{url}/api/2.0/preview/scim/v2/Users"
+    headers = {
+        "Authorization": f"Bearer {workspace.token}",
+        "Content-Type": "application/scim+json",
+        "Accept": "application/scim+json"
+    }
+    resp = requests.get(api_path, headers=headers)
+    raw = json.loads(resp.text) if resp.text else {}
+    users = raw.get('Resources', [])
+
+    uniq_users = {user['userName']: user for user in users}
+    for username, user in uniq_users.items():
+        scrape_user(workspace, user, session, result)
+
+    log.debug(f"Finished users scraping for workspace: {workspace.name}. "
+              f"Users scraped: {len(users)}")
 
 
 def scrape_workspace(workspace, session, instance_types):
@@ -185,19 +231,27 @@ def scrape_workspace(workspace, session, instance_types):
 
     api = DatabricksAPI(host=workspace.url, token=workspace.token)
 
-    log.info("Started scraping clusters in workspace %s.", workspace.name)
+    # CLUSTERS
+    log.info(f"Started scraping clusters in workspace {workspace.name}.")
     clusters = api.cluster.list_clusters()
     for cluster in clusters.get("clusters", []):
         scrape_cluster(workspace, cluster, instance_types, session, api, result)
+    log.info(f"Finished scraping clusters in workspace {workspace.name}.")
 
-    log.info("Finished scraping clusters in workspace %s.", workspace.name)
-
-    log.info("Started scraping jobs in workspace %s.", workspace.name)
+    # JOBS
+    log.info(f"Started scraping jobs in workspace {workspace.name}.")
     jobs = api.jobs.list_jobs()
     for job in jobs.get("jobs", []):
         scrape_jobs(workspace, job, session, api, result)
-    log.info("Finished scraping jobs in workspace %s. Jobs scraped: %d",
-             workspace.name, len(jobs))
+    log.info(f"Finished scraping jobs in workspace {workspace.name}. "
+             f"Jobs scraped: {len(jobs)}")
+
+    # USERS
+    log.info(f"Started scraping users in workspace {workspace.name}.")
+    scrape_users(workspace, session, result)
+    log.info(f"Finished scraping users in workspace {workspace.name}. "
+             f"Users scraped: {result.num_users}")
+
     result.finish(ScraperRun.SUCCESSFUL)
     return result
 
@@ -232,8 +286,8 @@ def scraping_loop(interval: int):
     while True:
         log.info("loop will go into another scraping")
         result = scrape()
-        log.info("Scraping %s finished", result.scraper_run_id[:8])
-        log.debug("Going to sleep for %d seconds", interval)
+        log.info(f"Scraping {result.scraper_run_id[:8]} finished.")
+        log.debug(f"Going to sleep for {interval} seconds")
         time.sleep(interval)
 
 
@@ -259,11 +313,12 @@ def scrape():
     for workspace in get_workspaces():
         result = scrape_workspace(workspace, session, instance_types)
         scraping_results.append(result)
+        session.commit()
 
     final_result = functools.reduce(
         ScraperRun.merge, scraping_results, ScraperRun.empty())
 
     session.add(final_result)
     session.commit()
-    log.info("Scraping done. Duration: %.2fs", time.time() - start_time)
+    log.info(f"Scraping done. Duration: {time.time() - start_time:.2f}", )
     return result

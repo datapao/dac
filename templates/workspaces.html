@@ -7,34 +7,59 @@
     <table class="table is-hoverable is-fullwidth">
         <thead>
             <tr>
-                <td>Name</td>
-                <td>ID</td>
-                <td>Type</td>
-                <td>URL</td>
-                <td>Active Clusters</td>
-                <td>Clusters</td>
-                <td>Daily cost</td>
-                <td>Monthly cost</td>
-            </tr>
-            <tbody>
-                {%for w in workspaces%}
-                <tr>
-                    <td><a href={{url_for("view_workspace", workspace_id=w.id)}}>{{w.name}}</a></td>
-                    <td>{{w.id}}</td>
-                    <td>{{w.type}}</td>
-                    <td><a href={{["https:", w.url] | join("//")}}>{{w.url}}</a></td>
-                    <td>{{w.active_clusters() | length}}</td>
-                    <td>{{w.clusters|length}}</td>
-                    <td>$54.34</td>
-                    <td>$6714.34</td>
-                </tr>
-                {% endfor %}
-
-            </tbody>
-
-
+                <th>Name</th>
+                <th>ID</th>
+                <th>Type</th>
+                <th>URL</th>
+                <th>Active Clusters</th>
+                <th>Clusters</th>
+                <th>Daily cost</th>
+                <th>Monthly cost</th>
             </tr>
         </thead>
+        <tbody>
+            {%for workspace in workspaces%}
+            <tr>
+                <td><a href={{ url_for("view_workspace", workspace_id=workspace.id) }}>{{ workspace.name }}</a></td>
+                <td>{{ workspace.id }}</td>
+                <td>{{ workspace.type }}</td>
+                <td><a href={{ ["https:", workspace.url] | join("//") }}>{{ workspace.url }}</a></td>
+                <td>{{ workspace.active_clusters() | length }}</td>
+                <td>{{ workspace.clusters | length }}</td>
+                <td>${{ (workspace.dbu_per_hour() * 24 * 10) | round(1, 'common') }}</td>
+                <td>${{ (workspace.dbu_per_hour() * 24 * 31 * 10) | round(1, 'common') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
+
+
+    <h2 class="subtitle">Users</h2>
+    <table class="table is-hoverable is-fullwidth">
+        {% for (workspace_name, users) in users_by_workspaces.items() %}
+        <thead>
+            <tr>
+                <th colspan=4>{{ workspace_name }}</th>
+            </tr>
+            <tr>
+                <th>Username</th>
+                <th>Full name</th>
+                <th>Primary e-mail</th>
+                <th>DBUs used last 7 days</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
+                <td>{{ user.name }}</td>
+                <td>{{ user.primary_email }}</td>
+                <td>{{ user.dbu() | round(2, 'common') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% endfor %}
+    </table>
+
 
 {% endblock %}

@@ -3,6 +3,7 @@
 
 
 <h1 class="title">Dashboard</h1>
+
 {% include 'level-info-bar.html' %}
 
 
@@ -31,43 +32,42 @@
     </div>
 </div>
 
+
+<h2 class="subtitle">Clusters</h2>
 <div class="columns">
-        <table class="table is-hoverable is-fullwidth">
-        {% for cluster_type, cluster_list in clusters.items() %}
-            <thead>
-                <tr>
-                    <th colspan=11>{{ cluster_type }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cluster in cluster_list %}
-                <tr>
-                    <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
-                    <td>{{ cluster.state }}</td>
-                    <td>{{ cluster.cluster_id }}</td>
-                    <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
-                    <td>{{ cluster.driver_type }}</td>
-                    <td>{{ cluster.worker_type }}</td>
-                    <td>{{ cluster.num_workers }}</td>
-                    <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
-                    <td>{{ cluster.dbu_cost_per_hour }}</td>
-                    <td>{{ cluster.hw_cost_per_hour }}</td>
-                    <td>{{ cluster.cost_per_hour }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        {% endfor %}
+    <table class="table is-hoverable is-fullwidth">
+    {% for cluster_type, cluster_list in clusters.items() %}
+        <thead>
+            <tr>
+                <th colspan=11>{{ cluster_type }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cluster in cluster_list %}
+            <tr>
+                <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
+                <td>{{ cluster.state }}</td>
+                <td>{{ cluster.cluster_id }}</td>
+                <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
+                <td>{{ cluster.driver_type }}</td>
+                <td>{{ cluster.worker_type }}</td>
+                <td>{{ cluster.num_workers }}</td>
+                <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
+                <td>{{ cluster.dbu_cost_per_hour }}</td>
+                <td>{{ cluster.hw_cost_per_hour }}</td>
+                <td>{{ cluster.cost_per_hour }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    {% endfor %}
     </table>
 </div>
 
 
 <script>
-    // TODO: fix missing data extraction for charts
     var time_stats = JSON.parse('{{ time_stats | tojson | safe }}');
     var last7dbu = JSON.parse('{{ last7dbu | tojson | safe }}');
     var numjobs = JSON.parse('{{ numjobs | tojson | safe }}');
-
-    console.log()
 
     interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
     interval_dbu_mean = time_stats.map(({interval_dbu_mean}) => interval_dbu_mean);
