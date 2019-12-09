@@ -11,6 +11,8 @@ from sqlalchemy import DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
+from aggregation import since
+
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
@@ -18,29 +20,40 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    user_id = Column(String, nullable=False)
     username = Column(String, primary_key=True)
     name = Column(String)
     is_active = Column(Boolean)
-    groups = Column(JSON(String))
     primary_email = Column(String)
-    emails = Column(JSON(String))
-    user_workspaces = relationship("UserWorkspace")
+    user_workspaces = relationship("UserWorkspace", back_populates='user')
 
     def state_df(self):
-        df = (pd.concat([workspace.state_df() for workspace in
-                         self.user_workspaces.workspace])
+        df = (pd.concat([workspace.workspace.state_df()
+                         for workspace in self.user_workspaces])
               .sort_values('timestamp'))
         return df.loc[df.user_id == self.username] if not df.empty else df
+
+    def active(self, since_days=7):
+        states = self.state_df()
+        states = states.loc[states.timestamp >= since(since_days)]
+        return not states.empty
+
+    def dbu(self, since_days=7):
+        states = self.state_df()
+        return (states
+                .loc[states.timestamp >= since(since_days)]
+                .interval_dbu
+                .sum())
 
 
 class UserWorkspace(Base):
     __tablename__ = 'user_workspaces'
+    user_id = Column(String, nullable=False)
     username = Column(String, ForeignKey("users.username"),
                       primary_key=True)
     workspace_id = Column(String, ForeignKey("workspaces.id"),
                           primary_key=True)
-    workspace = relationship('Workspace')
+    user = relationship('User', back_populates='user_workspaces')
+    workspace = relationship('Workspace', back_populates='user_workspaces')
 
 
 class Cluster(Base):
@@ -77,7 +90,6 @@ class Cluster(Base):
     spark_env_vars = Column(JSON)
     events = relationship("Event")
     cluster_states = relationship("ClusterStates")
-    user_workspaces = relationship("UserWorkspace")
 
     def eventFilterNot(self, types):
         return [e for e in self.events if e.type not in types]
@@ -89,8 +101,8 @@ class Cluster(Base):
 
         return df
 
-    def users(self):
-        return self.user_workspaces.users
+    def users(self, active_only=False):
+        return self.workspaces.users(active_only)
 
     def dbu_per_hour(self):
         df = self.state_df()
@@ -106,7 +118,7 @@ class Workspace(Base):
     type = Column(String, nullable=False)
     token = Column(String, nullable=False)
     clusters = relationship(Cluster)
-    users = relationship(User)
+    user_workspaces = relationship('UserWorkspace', back_populates='workspace')
 
     def active_clusters(self):
         return [cluster for cluster in self.clusters
@@ -124,6 +136,22 @@ class Workspace(Base):
               .reset_index(drop=True))
 
         return df
+
+    def users(self, active_only=False):
+        users = [uw.user for uw in self.user_workspaces]
+        if active_only:
+            users = [user for user in users if user.active()]
+        return users
+
+    def dbu(self, since_days=7):
+        states = self.state_df()
+        return (states
+                .loc[states.timestamp >= since(since_days)]
+                .interval_dbu
+                .sum())
+
+    def dbu_per_hour(self):
+        return sum([cluster.dbu_per_hour() for cluster in self.clusters])
 
 
 class Event(Base):
