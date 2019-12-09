@@ -46,25 +46,25 @@
         </table>
     </div>
     <div class="column">
-            <table class="table">
-                <tr>
-                    <th>Running time (total)</th>
-                    <td>{{cost.interval | round(1, 'common')}} h</td>
-                </tr>
-                <tr>
-                    <th>Total DBU (total)</th>
-                    <td>{{cost.interval_dbu | round(1, 'common')}}</td>
-                </tr>
-                <tr>
-                    <th>Running time (7 days)</th>
-                    <td>{{cost.weekly_interval_sum | round(1, 'common')}} h</td>
-                </tr>
-                <tr>
-                    <th>Total DBU (7 days)</th>
-                    <td>{{cost.weekly_interval_dbu_sum | round(1, 'common')}}</td>
-                </tr>
-            </table>
-        </div>
+        <table class="table">
+            <tr>
+                <th>Running time (total)</th>
+                <td>{{cost.interval | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (total)</th>
+                <td>{{cost.interval_dbu | round(1, 'common')}}</td>
+            </tr>
+            <tr>
+                <th>Running time (7 days)</th>
+                <td>{{cost.weekly_interval_sum | round(1, 'common')}} h</td>
+            </tr>
+            <tr>
+                <th>Total DBU (7 days)</th>
+                <td>{{cost.weekly_interval_dbu_sum | round(1, 'common')}}</td>
+            </tr>
+        </table>
+    </div>
 </div>
 
 <div class="columns">
@@ -83,9 +83,7 @@
     <div class="column is-half">
         <canvas id="chart-worker-hours"></canvas>
     </div>
-
 </div>
-
 
 
 <h3 class="title is-3">Events</h3>
@@ -97,6 +95,7 @@
                 <td>Event</td>
                 <td>Details</td>
             </tr>
+        </thead>
         <tbody>
             {%for event in cluster.eventFilterNot(["DRIVER_HEALTHY"])%}
             <tr>
@@ -105,12 +104,7 @@
                 <td>{{event.human_details()}}</td>
             </tr>
             {% endfor %}
-
         </tbody>
-
-
-        </tr>
-        </thead>
     </table>
 </section>
 
@@ -131,4 +125,5 @@
     chart('chart-worker-hours', false, 'Worker hours', 'bar', true, labels, worker_hours_sum);
 
 </script>
+
 {% endblock %}
