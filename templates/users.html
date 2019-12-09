@@ -6,43 +6,52 @@
 {% include 'level-info-bar.html' %}
 
 
-<!-- TODO: Insert charts here -->
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-active-user-count"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-clusters"></canvas>
+    </div>
+</div>
 
 
 <div class="columns">
     <table class="table is-hoverable is-fullwidth">
-    {% for workspace, user_list in users.items() %}
         <thead>
             <tr>
-                <th colspan=6><a href={{ url_for("view_workspace", workspace_id=workspace.id) }}>{{ workspace.name }}</a></th>
+                <th>Username</th>
+                <th>Full name</th>
+                <th>Primary e-mail</th>
+                <th>DBUs used last 7 days</th>
             </tr>
-            <tr>
-                    <th>User ID</th>
-                    <th>Username</th>
-                    <th>Full name</th>
-                    <th>Primary e-mail</th>
-                    <th>E-mails</th>
-                    <th>DBUs used last 7 days</th>
-                </tr>
         </thead>
         <tbody>
-            {% for (user, dbu) in user_list %}
+            {% for user in users %}
             <tr>
-                <td><a href={{ url_for("view_user", workspace_id=workspace.id, user_id=user.user_id) }}>{{ user.user_id }}</a></td>
-                <td>{{ user.username }}</td>
+                <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
                 <td>{{ user.name }}</td>
                 <td>{{ user.primary_email }}</td>
-                <td>{{ user.emails }}</td>
-                <td>{{ dbu  | round(2, 'common') }}</td>
+                <td>{{ user.dbu | round(2, 'common') }}</td>
             </tr>
             {% endfor %}
         </tbody>
-    {% endfor %}
     </table>
 </div>
 
+
 <script>
-    // TODO: Insert chart data generation here
+    var active_users = JSON.parse('{{ active_users | tojson | safe }}');
+
+    user_count = active_users.map(({user_id}) => user_id);
+    average_dbu = active_users.map(({average_dbu}) => average_dbu);
+    labels = active_users.map(({ts}) => ts);
+    console.log(active_users);
+
+    chart('chart-active-user-count', 'Active user count', 'count', 'line', true, labels, user_count);
+    chart('chart-clusters', false, 'Average DBU', 'line', false, labels, average_dbu);
+
 </script>
+
 
 {% endblock %}
