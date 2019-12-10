@@ -2,12 +2,17 @@ import argparse
 import configparser
 import functools
 import logging
+import os
 
 from datetime import datetime, timedelta
 
 import pandas as pd
 
-from flask import Flask, render_template
+from flask import Flask, render_template, flash
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField
+from wtforms.widgets import TextArea
+from wtforms.validators import DataRequired, ValidationError
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
@@ -25,6 +30,7 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 
 app = Flask(__name__, static_folder='templates/static/')
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or 'whoops'
 engine = create_engine(engine_url)
 Base.metadata.bind = engine
 
@@ -34,6 +40,13 @@ def create_session():
     DBSession.bind = engine
     session = DBSession()
     return session
+
+
+def format_datetime(value):
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+app.jinja_env.filters['datetime'] = format_datetime
 
 
 def get_level_info_data():
@@ -300,26 +313,70 @@ def view_scrape_runs():
                            last_scrape=last_scrape)
 
 
-def format_datetime(value):
-    return value.strftime("%Y-%m-%d %H:%M:%S")
-
-
 #  ======= ALERTS =======
 @app.route('/alerts')
 def view_alerts():
     return render_template('alerts.html')
 
 
-app.jinja_env.filters['datetime'] = format_datetime
+#  ======= SETTINGS =======
+class WorkspaceSettings(FlaskForm):
+    configtext = """{
+        "url": "myregion.azuredatabricks.net",
+        "id": "0123456789876543210",
+        "type": "AZURE",
+        "name": "my-azure-workspace",
+        "token": "dapi00123456789abcdefedcba9876543210"\n}"""
+    configjson = StringField('Workspace JSON Config',
+                             widget=TextArea(),
+                             validators=[DataRequired()],
+                             render_kw={"placeholder": configtext,
+                                        "class": "textarea",
+                                        "cols": "80", "rows": "8"})
+
+    def validate_configjson(form, field):
+        jsonstring = field.data
+        try:
+            config = json.loads(jsonstring)
+        except Exception:
+            raise ValidationError('Invalid JSON!')
+        else:
+            required_fields = ['url', 'id', 'type', 'name', 'token']
+            for key in required_fields:
+                if key not in config:
+                    raise ValidationError(f'Missing config keyword {key}!')
+
+            for key, value in config.items():
+                if not len(value):
+                    raise ValidationError(f'Missing config data for '
+                                          f'{key} keyword!')
+
+    submit = SubmitField('Submit', render_kw={"class": "button"})
+
+
+@app.route('/settings', methods=['GET', 'POST'])
+def view_settings():
+    form = WorkspaceSettings()
+    if form.validate_on_submit():
+        flash(form.configjson.data)
+    else:
+        flash('ERROR')
+    return render_template('settings.html', form=form)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run',
                         choices=["create_db", "scrape", "scrape_once"])
+    parser.add_argument('--workspace-json-path', type=str, default=None,
+                        help="Workspace description json file path")
     parser.add_argument('-c', '--config', type=str,
                         help='path to config file to use', default="config.ini")
     args = parser.parse_args()
+
+    if (args.command in ['scrape', 'scrape_once'] and args.workspace_json_path is None):
+        raise parser.error('Missing mandatory argument: workspace-json-path')
+
     command = args.command
     config = configparser.ConfigParser()
     config.read(args.config)
@@ -327,8 +384,10 @@ if __name__ == "__main__":
     log.debug("config path: %s", args.config)
 
     if command == "scrape":
-        start_scheduled_scraping(config["scraper"].getfloat("interval"))
+        start_scheduled_scraping(config["scraper"].getfloat("interval"),
+                                 args.workspace_json_path)
+        app.config['workspace_json_path'] = args.workspace_json_path
     elif command == "create_db":
         create_db()
     elif command == "scrape_once":
-        scrape()
+        scrape(args.workspace_json_path)

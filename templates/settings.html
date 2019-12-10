@@ -1,0 +1,33 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">Settings</h1>
+
+<div class="columns">
+    <div class="column is-half">
+        <form action="" method="post" novalidate>
+            {{ form.hidden_tag() }}
+            <p>
+                {{ form.configjson.label }}<br>
+                {{ form.configjson() }}
+            </p>
+            <p>{{ form.submit() }}</p>
+        </form>
+    </div>
+
+    <div class="column is-half">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <h1 class="subtitle">Current workspace configs:</h1>
+        <ul>
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+    </div>
+</div>
+
+{% endblock %}

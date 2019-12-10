@@ -256,49 +256,31 @@ def scrape_workspace(workspace, session, instance_types):
     return result
 
 
-def get_workspaces():
-    return [
-        Workspace(
-            url="dbc-b5882a77-2f55.cloud.databricks.com",
-            id="dbc-b5882a77-2f55",
-            type="AWS",
-            name="Datapao Main",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_AWS")
-        ),
-        Workspace(
-            url="westeurope.azuredatabricks.net/?o=1950971732059748",
-            id="1950971732059748",
-            type="AZURE",
-            name="Datapao Azure Main",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_AZURE")
-        ),
-        Workspace(
-            url="westeurope.azuredatabricks.net/?o=2381314298301659",
-            id="2381314298301659",
-            type="AZURE",
-            name="Lidl",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_LIDL")
-        )
-    ]
+def get_workspaces(json_path):
+    with open(json_path, 'r') as json_file:
+        workspaces = [json.loads(line) for line in json_file if line.strip()]
+
+    return [Workspace(**workspace) for workspace in workspaces]
 
 
-def scraping_loop(interval: int):
+def scraping_loop(interval: int, json_path: str):
     while True:
         log.info("loop will go into another scraping")
-        result = scrape()
+        result = scrape(json_path)
         log.info(f"Scraping {result.scraper_run_id[:8]} finished.")
         log.debug(f"Going to sleep for {interval} seconds")
         time.sleep(interval)
 
 
-def start_scheduled_scraping(interval: int) -> threading.Thread:
+def start_scheduled_scraping(interval: int, json_path: str) -> threading.Thread:
     thread = threading.Thread(target=scraping_loop,
-                              name="scraping-loop-Thread", args=[interval])
+                              name="scraping-loop-Thread",
+                              args=[interval, json_path])
     thread.start()
     return thread
 
 
-def scrape():
+def scrape(json_path):
     log.info("Scraping started...")
     start_time = time.time()
 
@@ -310,7 +292,7 @@ def scrape():
     instance_types = query_instance_types()
 
     scraping_results = []
-    for workspace in get_workspaces():
+    for workspace in get_workspaces(json_path):
         result = scrape_workspace(workspace, session, instance_types)
         scraping_results.append(result)
         session.commit()
