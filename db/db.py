@@ -119,6 +119,7 @@ class Workspace(Base):
     token = Column(String, nullable=False)
     clusters = relationship(Cluster)
     user_workspaces = relationship('UserWorkspace', back_populates='workspace')
+    __attributes__ = ['id', 'name', 'url', 'type', 'token']
 
     def active_clusters(self):
         return [cluster for cluster in self.clusters
@@ -152,6 +153,9 @@ class Workspace(Base):
 
     def dbu_per_hour(self):
         return sum([cluster.dbu_per_hour() for cluster in self.clusters])
+
+    def to_dict(self):
+        return {attr: getattr(self, attr) for attr in self.__attributes__}
 
 
 class Event(Base):
@@ -327,7 +331,6 @@ class ClusterStates(Base):
     num_workers = Column(Integer)
     dbu = Column(Float)
     interval = Column(Float, nullable=False)
-    # workspace_id = Column(String, ForeignKey("workspaces.id"))
     cluster = relationship(Cluster)
 
     __attributes__ = ["user_id", "cluster_id", "timestamp", "state",
@@ -347,6 +350,12 @@ class ClusterStates(Base):
 
     def to_dict(self):
         return {attr: getattr(self, attr) for attr in self.__attributes__}
+
+
+class Settings(Base):
+    __tablename__ = 'user_settings'
+    name = Column(String, primary_key=True)
+    value = Column(Float, default=1.0)
 
 
 def create_db():

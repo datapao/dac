@@ -27,8 +27,6 @@
       <td>Workers</td>
       <td>DBU / hour</td>
       <td>Last 7 days DBU</td>
-      <td>DBU cost / hour</td>
-      <td>HW cost / hour</td>
       <td>Cost / hour</td>
     </tr>
   <tbody>
@@ -43,9 +41,7 @@
       <td>{{ cluster.num_workers }}</td>
       <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
       <td>{{ cluster_dbus.get(cluster.cluster_id, 0.0) | round(2, 'common') }}</td>
-      <td>{{ cluster.dbu_cost_per_hour }}</td>
-      <td>{{ cluster.hw_cost_per_hour }}</td>
-      <td>{{ cluster.cost_per_hour }}</td>
+      <td>${{ (cluster.dbu_per_hour() * data.interactive_dbu_price) | round(2, 'common') }}</td>
     </tr>
     {% endfor %}
 

@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
 from db import Base, Cluster, Workspace, Event, Job, JobRun, User, UserWorkspace
-from db import ScraperRun, ClusterStates
+from db import ScraperRun, ClusterStates, Settings
 from scraping.parser import parse_events, query_instance_types
 
 
@@ -222,6 +222,20 @@ def scrape_users(workspace, session, result):
               f"Users scraped: {len(users)}")
 
 
+def scrape_settings(session, result):
+    log.debug(f"Generating default settings.")
+    default_settings = {
+        'interactive_dbu_price': 1.0,
+        'job_dbu_price': 1.0,
+        'threshold': -1.0
+    }
+    for name, value in default_settings.items():
+        setting = Settings(name=name, value=value)
+        session.merge(setting)
+
+    log.debug(f"Finished setting default settings: {default_settings}.")
+
+
 def scrape_workspace(workspace, session, instance_types):
     log.info(f"Scraping workspace {workspace.name}, {workspace.url}")
     result = ScraperRun.empty()
@@ -256,49 +270,42 @@ def scrape_workspace(workspace, session, instance_types):
     return result
 
 
-def get_workspaces():
-    return [
-        Workspace(
-            url="dbc-b5882a77-2f55.cloud.databricks.com",
-            id="dbc-b5882a77-2f55",
-            type="AWS",
-            name="Datapao Main",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_AWS")
-        ),
-        Workspace(
-            url="westeurope.azuredatabricks.net/?o=1950971732059748",
-            id="1950971732059748",
-            type="AZURE",
-            name="Datapao Azure Main",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_AZURE")
-        ),
-        Workspace(
-            url="westeurope.azuredatabricks.net/?o=2381314298301659",
-            id="2381314298301659",
-            type="AZURE",
-            name="Lidl",
-            token=os.getenv("DATABRICKS_TOKEN_MAIN_LIDL")
-        )
-    ]
+def load_workspaces(json_path):
+    with open(json_path, 'r') as json_file:
+        workspaces = [json.loads(line) for line in json_file if line.strip()]
+    return workspaces
 
 
-def scraping_loop(interval: int):
+def export_workspaces(workspaces, json_path):
+    with open(json_path, 'w') as json_file:
+        for workspace in workspaces:
+            if isinstance(workspace, Workspace):
+                workspace = workspace.to_dict()
+            json_file.write(json.dumps(workspace) + '\n')
+
+
+def get_workspaces(json_path):
+    return [Workspace(**workspace) for workspace in load_workspaces(json_path)]
+
+
+def scraping_loop(interval: int, json_path: str):
     while True:
         log.info("loop will go into another scraping")
-        result = scrape()
+        result = scrape(json_path)
         log.info(f"Scraping {result.scraper_run_id[:8]} finished.")
         log.debug(f"Going to sleep for {interval} seconds")
         time.sleep(interval)
 
 
-def start_scheduled_scraping(interval: int) -> threading.Thread:
+def start_scheduled_scraping(interval: int, json_path: str) -> threading.Thread:
     thread = threading.Thread(target=scraping_loop,
-                              name="scraping-loop-Thread", args=[interval])
+                              name="scraping-loop-Thread",
+                              args=[interval, json_path])
     thread.start()
     return thread
 
 
-def scrape():
+def scrape(json_path):
     log.info("Scraping started...")
     start_time = time.time()
 
@@ -310,10 +317,13 @@ def scrape():
     instance_types = query_instance_types()
 
     scraping_results = []
-    for workspace in get_workspaces():
+    for workspace in get_workspaces(json_path):
         result = scrape_workspace(workspace, session, instance_types)
         scraping_results.append(result)
         session.commit()
+
+    # SETTINGS
+    scrape_settings(session, result)
 
     final_result = functools.reduce(
         ScraperRun.merge, scraping_results, ScraperRun.empty())
@@ -321,4 +331,4 @@ def scrape():
     session.add(final_result)
     session.commit()
     log.info(f"Scraping done. Duration: {time.time() - start_time:.2f}", )
-    return result
+    return final_result

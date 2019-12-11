@@ -280,7 +280,7 @@ def query_instance_types() -> pd.DataFrame:
     # AZURE parse
     column_mapping = {
         'Instance': 'type',
-        'vCPU': 'cpu',
+        'vCPU(s)': 'cpu',
         'Ram': 'mem',
         'Dbu Count': 'light'
     }
