@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
 from db import Base, Cluster, Workspace, Event, Job, JobRun, User, UserWorkspace
-from db import ScraperRun, ClusterStates
+from db import ScraperRun, ClusterStates, Settings
 from scraping.parser import parse_events, query_instance_types
 
 
@@ -222,6 +222,19 @@ def scrape_users(workspace, session, result):
               f"Users scraped: {len(users)}")
 
 
+def scrape_settings(session, result):
+    log.debug(f"Generating default settings.")
+    default_settings = {
+        'dbu_price': 10.0,
+        'threshold': -1.0
+    }
+    for name, value in default_settings.items():
+        setting = Settings(name=name, value=value)
+        session.merge(setting)
+
+    log.debug(f"Finished setting default settings: {default_settings}.")
+
+
 def scrape_workspace(workspace, session, instance_types):
     log.info(f"Scraping workspace {workspace.name}, {workspace.url}")
     result = ScraperRun.empty()
@@ -256,11 +269,22 @@ def scrape_workspace(workspace, session, instance_types):
     return result
 
 
-def get_workspaces(json_path):
+def load_workspaces(json_path):
     with open(json_path, 'r') as json_file:
         workspaces = [json.loads(line) for line in json_file if line.strip()]
+    return workspaces
 
-    return [Workspace(**workspace) for workspace in workspaces]
+
+def export_workspaces(workspaces, json_path):
+    with open(json_path, 'w') as json_file:
+        for workspace in workspaces:
+            if isinstance(workspace, Workspace):
+                workspace = workspace.to_dict()
+            json_file.write(json.dumps(workspace) + '\n')
+
+
+def get_workspaces(json_path):
+    return [Workspace(**workspace) for workspace in load_workspaces(json_path)]
 
 
 def scraping_loop(interval: int, json_path: str):
@@ -297,10 +321,13 @@ def scrape(json_path):
         scraping_results.append(result)
         session.commit()
 
+    # SETTINGS
+    scrape_settings(session, result)
+
     final_result = functools.reduce(
         ScraperRun.merge, scraping_results, ScraperRun.empty())
 
     session.add(final_result)
     session.commit()
     log.info(f"Scraping done. Duration: {time.time() - start_time:.2f}", )
-    return result
+    return final_result

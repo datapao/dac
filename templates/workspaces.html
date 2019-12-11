@@ -27,8 +27,8 @@
                 <td><a href={{ ["https:", workspace.url] | join("//") }}>{{ workspace.url }}</a></td>
                 <td>{{ workspace.active_clusters() | length }}</td>
                 <td>{{ workspace.clusters | length }}</td>
-                <td>${{ (workspace.dbu_per_hour() * 24 * 10) | round(1, 'common') }}</td>
-                <td>${{ (workspace.dbu_per_hour() * 24 * 31 * 10) | round(1, 'common') }}</td>
+                <td>${{ (workspace.dbu_per_hour() * 24 * data.dbu_price) | round(1, 'common') }}</td>
+                <td>${{ (workspace.dbu_per_hour() * 24 * 31 * data.dbu_price) | round(1, 'common') }}</td>
             </tr>
             {% endfor %}
         </tbody>

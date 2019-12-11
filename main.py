@@ -9,18 +9,16 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from flask import Flask, render_template, flash
-from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField
-from wtforms.widgets import TextArea
-from wtforms.validators import DataRequired, ValidationError
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, aggregate_for_entity
+from app.forms import WorkspaceForm, PriceForm
 from db import engine_url, create_db, Base
-from db import Workspace, Cluster, Job, User, ScraperRun
+from db import Workspace, Cluster, Job, User, ScraperRun, Settings
 from scraping import scrape, start_scheduled_scraping
+from scraping import load_workspaces, export_workspaces
 
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
@@ -30,7 +28,8 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 
 app = Flask(__name__, static_folder='templates/static/')
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or 'whoops'
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY') or 'whoops'
+app.config['WORKSPACE_JSON_PATH'] = os.getenv('DAC_WORKSPACE_JSON')
 engine = create_engine(engine_url)
 Base.metadata.bind = engine
 
@@ -52,6 +51,11 @@ app.jinja_env.filters['datetime'] = format_datetime
 def get_level_info_data():
     session = create_session()
     workspaces = session.query(Workspace)
+    dbu_price = (session
+                 .query(Settings)
+                 .filter(Settings.name == 'dbu_price')
+                 .one()
+                 .value)
 
     workspace_count = workspaces.count()
     cluster_count = sum([len(workspace.active_clusters())
@@ -61,16 +65,15 @@ def get_level_info_data():
                          for workspace in workspaces)
 
     dbu_count = get_cluster_dbus(actives)
-    # TODO: use price from settings
-    # related todo @ db.py: implement user settings
-    dbu_cost = dbu_count * 10
+    dbu_cost = dbu_count * dbu_price
 
     return {
         "clusters": cluster_count,
         "workspaces": workspace_count,
         "user_count": user_count,
         "daily_dbu": dbu_count,
-        "daily_dbu_cost": dbu_cost
+        "daily_dbu_cost": dbu_cost,
+        "dbu_price": dbu_price
     }
 
 
@@ -184,7 +187,6 @@ def view_workspace(workspace_id):
 def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
-
     level_info_data = get_level_info_data()
 
     users_by_workspaces = {}
@@ -220,9 +222,9 @@ def view_cluster(cluster_id):
 def view_clusters():
     session = create_session()
     clusters = session.query(Cluster).all()
-
     level_info_data = get_level_info_data()
     states = concat_dfs(cluster.state_df() for cluster in clusters)
+
     cost_summary, time_stats = aggregate_for_entity(states)
     cluster_dbus = (aggregate(df=states,
                               col="interval_dbu",
@@ -260,13 +262,14 @@ def view_user(username):
 def view_users():
     session = create_session()
     users = session.query(User).all()
+
     level_info_data = get_level_info_data()
 
     for user in users:
         user.dbu = aggregate(df=user.state_df(),
                              col='interval_dbu',
                              since_days=7)
-    users = sorted(users, key=lambda x: x.dbu, reverse=True)
+    users = sorted(users, key=lambda user: user.dbu, reverse=True)
     states = concat_dfs(user.state_df() for user in users)
 
     # Average active users
@@ -289,9 +292,6 @@ def view_users():
     active_users['average_dbu'] = ((active_users.sum_dbus
                                     / active_users.user_id)
                                    .fillna(0.))
-
-    print(active_users)
-    print(dbus)
 
     return render_template('users.html',
                            users=users,
@@ -320,62 +320,84 @@ def view_alerts():
 
 
 #  ======= SETTINGS =======
-class WorkspaceSettings(FlaskForm):
-    configtext = """{
-        "url": "myregion.azuredatabricks.net",
-        "id": "0123456789876543210",
-        "type": "AZURE",
-        "name": "my-azure-workspace",
-        "token": "dapi00123456789abcdefedcba9876543210"\n}"""
-    configjson = StringField('Workspace JSON Config',
-                             widget=TextArea(),
-                             validators=[DataRequired()],
-                             render_kw={"placeholder": configtext,
-                                        "class": "textarea",
-                                        "cols": "80", "rows": "8"})
+def format_workspace_configs(configs):
+    if not isinstance(configs, list):
+        configs = [configs]
 
-    def validate_configjson(form, field):
-        jsonstring = field.data
-        try:
-            config = json.loads(jsonstring)
-        except Exception:
-            raise ValidationError('Invalid JSON!')
-        else:
-            required_fields = ['url', 'id', 'type', 'name', 'token']
-            for key in required_fields:
-                if key not in config:
-                    raise ValidationError(f'Missing config keyword {key}!')
+    formatted = []
+    for config in configs:
+        key_value = '\n\t'.join([f"'{k}': '{v}'" for k, v in config.items()])
+        formatted.append(f'{{\n\t{key_value}\n}}')
 
-            for key, value in config.items():
-                if not len(value):
-                    raise ValidationError(f'Missing config data for '
-                                          f'{key} keyword!')
+    return ',\n'.join(formatted)
 
-    submit = SubmitField('Submit', render_kw={"class": "button"})
+
+def add_new_workspace(form):
+    json_path = app.config['WORKSPACE_JSON_PATH']
+    workspaces = load_workspaces(json_path)
+
+    workspace = {
+        'url': form.urlfield.data,
+        'id': form.idfield.data,
+        'type': form.typefield.data,
+        'name': form.namefield.data,
+        'token': form.tokenfield.data
+    }
+
+    # TODO: find tmp path / or modify scrape to accept workspace setup
+    export_workspaces([workspace], 'configs/new_workspace.json')
+    try:
+        scrape('configs/new_workspace.json')
+    except Exception as e:
+        return render_template('failed.html', error=e.message)
+    else:
+        workspaces.append(workspace)
+        export_workspaces(workspaces, json_path)
+
+    return workspaces
+
+
+def update_price_settings(form):
+    session = create_session()
+    settings = (session
+                .query(Settings)
+                .filter(Settings.name == 'dbu_price')
+                .one())
+
+    price = settings.value
+    if price != form.price.data:
+        new = Settings(name="dbu_price", value=form.price.data)
+        session.merge(new)
+        session.commit()
+        price = form.price.data
+
+    return price
 
 
 @app.route('/settings', methods=['GET', 'POST'])
 def view_settings():
-    form = WorkspaceSettings()
-    if form.validate_on_submit():
-        flash(form.configjson.data)
-    else:
-        flash('ERROR')
-    return render_template('settings.html', form=form)
+    workspace_form = WorkspaceForm()
+    if workspace_form.workspace_submit.data and workspace_form.validate_on_submit():
+        workspaces = add_new_workspace(form)
+        flash(format_workspace_configs(workspaces), category="workspace")
+
+    price_form = PriceForm()
+    if price_form.price_submit.data and price_form.validate_on_submit():
+        actual_price = update_price_settings(price_form)
+        flash(actual_price, category="price")
+
+    return render_template('settings.html',
+                           workspace_form=workspace_form,
+                           price_form=price_form)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run',
                         choices=["create_db", "scrape", "scrape_once"])
-    parser.add_argument('--workspace-json-path', type=str, default=None,
-                        help="Workspace description json file path")
     parser.add_argument('-c', '--config', type=str,
                         help='path to config file to use', default="config.ini")
     args = parser.parse_args()
-
-    if (args.command in ['scrape', 'scrape_once'] and args.workspace_json_path is None):
-        raise parser.error('Missing mandatory argument: workspace-json-path')
 
     command = args.command
     config = configparser.ConfigParser()
@@ -384,10 +406,11 @@ if __name__ == "__main__":
     log.debug("config path: %s", args.config)
 
     if command == "scrape":
-        start_scheduled_scraping(config["scraper"].getfloat("interval"),
-                                 args.workspace_json_path)
-        app.config['workspace_json_path'] = args.workspace_json_path
+        interval = config["scraper"].getfloat("interval")
+        path = app.config['WORKSPACE_JSON_PATH']
+        thread = start_scheduled_scraping(interval, path)
     elif command == "create_db":
         create_db()
     elif command == "scrape_once":
-        scrape(args.workspace_json_path)
+        path = app.config['WORKSPACE_JSON_PATH']
+        scrape(path)
