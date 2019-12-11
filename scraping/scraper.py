@@ -225,7 +225,8 @@ def scrape_users(workspace, session, result):
 def scrape_settings(session, result):
     log.debug(f"Generating default settings.")
     default_settings = {
-        'dbu_price': 10.0,
+        'interactive_dbu_price': 1.0,
+        'job_dbu_price': 1.0,
         'threshold': -1.0
     }
     for name, value in default_settings.items():

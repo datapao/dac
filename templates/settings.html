@@ -69,10 +69,19 @@
 
 <div class="columns">
     <div class="column is-half">
-        <h1 class="subtitle">Add new workspace</h1>
+        <h1 class="subtitle">Set new DBU price</h1>
         <form action="" method="post" novalidate>
-            {{ workspace_form.hidden_tag() }}
-            <p>{{ price_form.price.label }} {{ price_form.price() }}</p>
+            {{ price_form.hidden_tag() }}
+            <table class="table">
+                <tr>
+                    <th>{{ price_form.interactive_dbu_price.label }}</th>
+                    <th>{{ price_form.job_dbu_price.label }}</th>
+                </tr>
+                <tr>
+                    <td>{{ price_form.interactive_dbu_price() }}</td>
+                    <td>{{ price_form.job_dbu_price() }}</td>
+                </tr>
+            </table>
             <p>{{ price_form.price_submit() }}</p>
         </form>
     </div>

@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, SelectField, SubmitField, FloatField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Optional
 
 
 class WorkspaceForm(FlaskForm):
@@ -27,5 +27,16 @@ class WorkspaceForm(FlaskForm):
 
 
 class PriceForm(FlaskForm):
-    price = FloatField('Cost / DBU', validators=[DataRequired()])
+    interactive_dbu_price = FloatField('Cost / Interactive DBU', validators=[Optional()])
+    job_dbu_price = FloatField('Cost / Job DBU', validators=[Optional()])
     price_submit = SubmitField('Set', render_kw={"class": "button"})
+
+    def validate(self):
+        if not super().validate():
+            return False
+        if not self.interactive_dbu_price.data and not self.job_dbu_price.data:
+            msg = 'At least one of the price must be set'
+            self.interactive_dbu_price.errors.append(msg)
+            self.job_dbu_price.errors.append(msg)
+            return False
+        return True

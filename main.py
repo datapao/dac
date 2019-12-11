@@ -48,14 +48,20 @@ def format_datetime(value):
 app.jinja_env.filters['datetime'] = format_datetime
 
 
+def get_settings():
+    session = create_session()
+    settings = session.query(Settings).all()
+    settings = {setting.name: setting.value for setting in settings}
+    return settings
+
+
 def get_level_info_data():
     session = create_session()
     workspaces = session.query(Workspace)
-    dbu_price = (session
-                 .query(Settings)
-                 .filter(Settings.name == 'dbu_price')
-                 .one()
-                 .value)
+
+    settings = get_settings()
+    interactive_dbu_price = settings['interactive_dbu_price']
+    job_dbu_price = settings['job_dbu_price']
 
     workspace_count = workspaces.count()
     cluster_count = sum([len(workspace.active_clusters())
@@ -65,7 +71,7 @@ def get_level_info_data():
                          for workspace in workspaces)
 
     dbu_count = get_cluster_dbus(actives)
-    dbu_cost = dbu_count * dbu_price
+    dbu_cost = dbu_count * interactive_dbu_price
 
     return {
         "clusters": cluster_count,
@@ -73,7 +79,8 @@ def get_level_info_data():
         "user_count": user_count,
         "daily_dbu": dbu_count,
         "daily_dbu_cost": dbu_cost,
-        "dbu_price": dbu_price
+        "interactive_dbu_price": interactive_dbu_price,
+        "job_dbu_price": job_dbu_price
     }
 
 
@@ -359,19 +366,20 @@ def add_new_workspace(form):
 
 def update_price_settings(form):
     session = create_session()
-    settings = (session
-                .query(Settings)
-                .filter(Settings.name == 'dbu_price')
-                .one())
+    settings = get_settings()
 
-    price = settings.value
-    if price != form.price.data:
-        new = Settings(name="dbu_price", value=form.price.data)
-        session.merge(new)
-        session.commit()
-        price = form.price.data
+    price_keys = ['interactive_dbu_price', 'job_dbu_price']
+    for price in price_keys:
+        new_price = form.__getattribute__(price).data
+        if settings[price] != new_price:
+            new = Settings(name=price, value=new_price)
+            session.merge(new)
+            session.commit()
+            settings[price] = new_price
 
-    return price
+    return {setting: value
+            for setting, value in settings.items()
+            if setting in price_keys}
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -383,8 +391,9 @@ def view_settings():
 
     price_form = PriceForm()
     if price_form.price_submit.data and price_form.validate_on_submit():
-        actual_price = update_price_settings(price_form)
-        flash(actual_price, category="price")
+        price_dict = update_price_settings(price_form)
+        flash(price_dict['interactive_dbu_price'], category="price")
+        flash(price_dict['job_dbu_price'], category="price")
 
     return render_template('settings.html',
                            workspace_form=workspace_form,
