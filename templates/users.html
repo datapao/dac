@@ -49,7 +49,7 @@
     labels = active_users.map(({ts}) => ts);
     console.log(active_users);
 
-    chart('chart-active-user-count', 'Active user count', 'count', 'line', true, labels, user_count);
+    chart('chart-active-user-count', 'Active user count', 'count', 'bar', true, labels, user_count);
     chart('chart-clusters', false, 'Average DBU', 'line', false, labels, average_dbu);
 
 </script>
