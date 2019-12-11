@@ -76,16 +76,6 @@
     </div>
 </div>
 
-<div class="columns">
-    <div class="column is-half">
-        <canvas id="chart-workers"></canvas>
-    </div>
-    <div class="column is-half">
-        <canvas id="chart-worker-hours"></canvas>
-    </div>
-</div>
-
-
 <h3 class="title is-3">Events</h3>
 <section class="section">
     <table class="table is-hoverable is-fullwidth">
@@ -114,16 +104,11 @@
 
     interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum)
     interval_sum = time_stats.map(({interval_sum}) => interval_sum)
-    num_workers_max = time_stats.map(({num_workers_max}) => num_workers_max)
-    worker_hours_sum = time_stats.map(({worker_hours_sum}) => worker_hours_sum)
     labels = time_stats.map(({ts}) => ts)
     console.log(time_stats)
 
     chart('chart-price', false, 'Total DBU', 'bar', true, labels, interval_dbu_sum);
     chart('chart-clusters', false, 'Running time (hours)', 'line', false, labels, interval_sum);
-    chart('chart-workers', false, 'Max workers', 'bar', true, labels, num_workers_max);
-    chart('chart-worker-hours', false, 'Worker hours', 'bar', true, labels, worker_hours_sum);
-
 </script>
 
 {% endblock %}
