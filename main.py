@@ -125,10 +125,6 @@ def view_dashboard():
     clusters = session.query(Cluster).all()
     states = concat_dfs(cluster.state_df() for cluster in clusters)
 
-    clusters_by_type = {}
-    for cluster in clusters:
-        clusters_by_type.setdefault(cluster.worker_type, []).append(cluster)
-
     level_info_data = get_level_info_data()
     numbjobs_dict = get_running_jobs(session)
     last7dbu_dict = get_last_7_days_dbu(states)
@@ -140,7 +136,6 @@ def view_dashboard():
         time_stats_dict = time_stats.to_dict("records")
 
     return render_template('dashboard.html',
-                           clusters=clusters_by_type,
                            time_stats=time_stats_dict,
                            last7dbu=last7dbu_dict,
                            numjobs=numbjobs_dict,
