@@ -352,12 +352,6 @@ class ClusterStates(Base):
         return {attr: getattr(self, attr) for attr in self.__attributes__}
 
 
-class Settings(Base):
-    __tablename__ = 'user_settings'
-    name = Column(String, primary_key=True)
-    value = Column(Float, default=1.0)
-
-
 def create_db():
     engine = create_engine(engine_url)
     Base.metadata.create_all(engine)

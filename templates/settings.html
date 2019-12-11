@@ -1,106 +1,25 @@
 {% extends "index.html" %}
 {% block content %}
 
-
 <h1 class="title">Settings</h1>
 
 <div class="columns">
-    <div class="column is-half">
-        <h1 class="subtitle">Add new workspace</h1>
-        <form action="" method="post" novalidate>
-            {{ workspace_form.hidden_tag() }}
-            <table class="table">
-                <tr>
-                    <th>{{ workspace_form.urlfield.label }}</th>
-                    <td>{{ workspace_form.urlfield() }}</td>
-                    {% for error in workspace_form.urlfield.errors %}
-                    <td style="color: red;">[{{ error }}]</td>
+    <table class="table">
+        {% for name, values in settings.items() %}
+        <tr>
+            <th>{{ name }}</th>
+            <td>
+                <table>
+                    {% for value in values %}
+                    <tr>
+                        <td>{{ value }}</td>
+                    </tr>
                     {% endfor %}
-                </tr>
-
-                <tr>
-                    <th>{{ workspace_form.idfield.label }}</th>
-                    <td>{{ workspace_form.idfield() }}</td>
-                    {% for error in workspace_form.idfield.errors %}
-                    <td style="color: red;">[{{ error }}]</td>
-                    {% endfor %}
-                </tr>
-
-                <tr>
-                    <th>{{ workspace_form.typefield.label }}</th>
-                    <td>{{ workspace_form.typefield() }}</td>
-                    {% for error in workspace_form.typefield.errors %}
-                    <td style="color: red;">[{{ error }}]</td>
-                    {% endfor %}
-                </tr>
-
-                <tr>
-                    <th>{{ workspace_form.namefield.label }}</th>
-                    <td>{{ workspace_form.namefield() }}</td>
-                    {% for error in workspace_form.namefield.errors %}
-                    <td style="color: red;">[{{ error }}]</td>
-                    {% endfor %}
-                </tr>
-
-                <tr>
-                    <th>{{ workspace_form.tokenfield.label }}</th>
-                    <td>{{ workspace_form.tokenfield() }}</td>
-                    {% for error in workspace_form.urlfield.errors %}
-                    <td style="color: red;">[{{ error }}]</td>
-                    {% endfor %}
-                </tr>
-            </table>
-            <p>{{ workspace_form.workspace_submit() }}</p>
-        </form>
-    </div>
-
-    <div class="column is-half">
-        {% with messages = get_flashed_messages(category_filter=['workspace']) %}
-        {% if messages %}
-        <h1 class="subtitle">Current workspace configs:</h1>
-        {% for message in messages %}
-        <pre>{{ message }}</pre><br>
+                </table>
+            </td>
+        </tr>
         {% endfor %}
-        {% endif %}
-        {% endwith %}
-    </div>
+    </table>
 </div>
 
-
-<div class="columns">
-    <div class="column is-half">
-        <h1 class="subtitle">Set new DBU price</h1>
-        <form action="" method="post" novalidate>
-            {{ price_form.hidden_tag() }}
-            <table class="table">
-                <tr>
-                    <th>{{ price_form.interactive_dbu_price.label }}</th>
-                    <th>{{ price_form.job_dbu_price.label }}</th>
-                </tr>
-                <tr>
-                    <td>{{ price_form.interactive_dbu_price() }}</td>
-                    <td>{{ price_form.job_dbu_price() }}</td>
-                </tr>
-            </table>
-            <p>{{ price_form.price_submit() }}</p>
-        </form>
-    </div>
-
-    <div class="column is-half">
-        {% with messages = get_flashed_messages(category_filter=['price']) %}
-        {% if messages %}
-        <h1 class="subtitle">Actual price config:</h1>
-        <table class="table">
-            {% for message in messages %}
-            <tr>
-                <th>Cost / DBU</th>
-                <td>{{ message }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        {% endif %}
-        {% endwith %}
-    </div>
-
-</div>
 {% endblock %}

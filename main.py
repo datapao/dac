@@ -2,6 +2,7 @@ import argparse
 import configparser
 import functools
 import logging
+import json
 import os
 
 from datetime import datetime, timedelta
@@ -14,9 +15,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, aggregate_for_entity
-from app.forms import WorkspaceForm, PriceForm
 from db import engine_url, create_db, Base
-from db import Workspace, Cluster, Job, User, ScraperRun, Settings
+from db import Workspace, Cluster, Job, User, ScraperRun
 from scraping import scrape, start_scheduled_scraping
 from scraping import load_workspaces, export_workspaces
 
@@ -29,7 +29,6 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 app = Flask(__name__, static_folder='templates/static/')
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY') or 'whoops'
-app.config['WORKSPACE_JSON_PATH'] = os.getenv('DAC_WORKSPACE_JSON')
 engine = create_engine(engine_url)
 Base.metadata.bind = engine
 
@@ -49,9 +48,9 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 
 def get_settings():
-    session = create_session()
-    settings = session.query(Settings).all()
-    settings = {setting.name: setting.value for setting in settings}
+    json_path = os.getenv('DAC_CONFIG_JSON')
+    with open(json_path, 'r') as json_file:
+        settings = json.load(json_file)
     return settings
 
 
@@ -59,9 +58,10 @@ def get_level_info_data():
     session = create_session()
     workspaces = session.query(Workspace)
 
-    settings = get_settings()
-    interactive_dbu_price = settings['interactive_dbu_price']
-    job_dbu_price = settings['job_dbu_price']
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
+    interactive_dbu_price = price_settings['interactive']
+    job_dbu_price = price_settings['job']
 
     workspace_count = workspaces.count()
     cluster_count = sum([len(workspace.active_clusters())
@@ -364,40 +364,9 @@ def add_new_workspace(form):
     return workspaces
 
 
-def update_price_settings(form):
-    session = create_session()
-    settings = get_settings()
-
-    price_keys = ['interactive_dbu_price', 'job_dbu_price']
-    for price in price_keys:
-        new_price = form.__getattribute__(price).data
-        if settings[price] != new_price:
-            new = Settings(name=price, value=new_price)
-            session.merge(new)
-            session.commit()
-            settings[price] = new_price
-
-    return {setting: value
-            for setting, value in settings.items()
-            if setting in price_keys}
-
-
 @app.route('/settings', methods=['GET', 'POST'])
 def view_settings():
-    workspace_form = WorkspaceForm()
-    if workspace_form.workspace_submit.data and workspace_form.validate_on_submit():
-        workspaces = add_new_workspace(form)
-        flash(format_workspace_configs(workspaces), category="workspace")
-
-    price_form = PriceForm()
-    if price_form.price_submit.data and price_form.validate_on_submit():
-        price_dict = update_price_settings(price_form)
-        flash(price_dict['interactive_dbu_price'], category="price")
-        flash(price_dict['job_dbu_price'], category="price")
-
-    return render_template('settings.html',
-                           workspace_form=workspace_form,
-                           price_form=price_form)
+    return render_template('settings.html', settings=get_settings())
 
 
 if __name__ == "__main__":
@@ -416,10 +385,9 @@ if __name__ == "__main__":
 
     if command == "scrape":
         interval = config["scraper"].getfloat("interval")
-        path = app.config['WORKSPACE_JSON_PATH']
+        path = os.getenv('DAC_CONFIG_JSON')
         thread = start_scheduled_scraping(interval, path)
     elif command == "create_db":
         create_db()
     elif command == "scrape_once":
-        path = app.config['WORKSPACE_JSON_PATH']
-        scrape(path)
+        scrape(os.getenv('DAC_CONFIG_JSON'))

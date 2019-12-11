@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
 from db import Base, Cluster, Workspace, Event, Job, JobRun, User, UserWorkspace
-from db import ScraperRun, ClusterStates, Settings
+from db import ScraperRun, ClusterStates
 from scraping.parser import parse_events, query_instance_types
 
 
@@ -222,20 +222,6 @@ def scrape_users(workspace, session, result):
               f"Users scraped: {len(users)}")
 
 
-def scrape_settings(session, result):
-    log.debug(f"Generating default settings.")
-    default_settings = {
-        'interactive_dbu_price': 1.0,
-        'job_dbu_price': 1.0,
-        'threshold': -1.0
-    }
-    for name, value in default_settings.items():
-        setting = Settings(name=name, value=value)
-        session.merge(setting)
-
-    log.debug(f"Finished setting default settings: {default_settings}.")
-
-
 def scrape_workspace(workspace, session, instance_types):
     log.info(f"Scraping workspace {workspace.name}, {workspace.url}")
     result = ScraperRun.empty()
@@ -272,7 +258,7 @@ def scrape_workspace(workspace, session, instance_types):
 
 def load_workspaces(json_path):
     with open(json_path, 'r') as json_file:
-        workspaces = [json.loads(line) for line in json_file if line.strip()]
+        workspaces = json.load(json_file)['workspaces']
     return workspaces
 
 
@@ -321,9 +307,6 @@ def scrape(json_path):
         result = scrape_workspace(workspace, session, instance_types)
         scraping_results.append(result)
         session.commit()
-
-    # SETTINGS
-    scrape_settings(session, result)
 
     final_result = functools.reduce(
         ScraperRun.merge, scraping_results, ScraperRun.empty())
