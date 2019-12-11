@@ -21,7 +21,7 @@
         <canvas id="chart-dbu-last7"></canvas>
     </div>
     <div class="column is-half">
-        <canvas id="chart-cumulative-cluster-time"></canvas>
+        <canvas id="chart-cumulative-cluster-dbu"></canvas>
     </div>
 </div>
 
@@ -39,7 +39,7 @@
 
     interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
     interval_sum = time_stats.map(({interval_sum}) => interval_sum);
-    interval_cumsum = time_stats.map(({interval_cumsum}) => interval_cumsum);
+    dbu_cumsum = time_stats.map(({dbu_cumsum}) => dbu_cumsum);
     num_workers_max = time_stats.map(({num_workers_max}) => num_workers_max);
     worker_hours_sum = time_stats.map(({worker_hours_sum}) => worker_hours_sum);
     jobs_count = numjobs.map(({job_id}) => job_id);
@@ -51,7 +51,7 @@
     chart('chart-dbu-over-time', 'DBU over time', 'DBU', 'line', true, labels, interval_dbu_sum);
     chart('chart-running-time', "Running time", 'hours', 'line', false, labels, interval_sum);
     chart('chart-dbu-last7', 'Last 7 days DBU', 'DBU', 'line', true, seven_days_label, last_7_dbu);
-    chart('chart-cumulative-cluster-time', 'Cumulative Cluster time', 'hours', 'line', true, labels, interval_cumsum);
+    chart('chart-cumulative-cluster-dbu', 'Cumulative DBU', 'DBU', 'line', true, labels, dbu_cumsum);
     chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);
 
 </script>

@@ -132,7 +132,7 @@ def view_dashboard():
     time_stats_dict = {}
     if not states.empty:
         cost_summary, time_stats = aggregate_for_entity(states)
-        time_stats['interval_cumsum'] = time_stats['interval_sum'].cumsum()
+        time_stats['dbu_cumsum'] = time_stats['interval_dbu_sum'].cumsum()
         time_stats_dict = time_stats.to_dict("records")
 
     return render_template('dashboard.html',
@@ -190,6 +190,7 @@ def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
     level_info_data = get_level_info_data()
+
 
     return render_template('workspaces.html',
                            workspaces=workspaces,
