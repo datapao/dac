@@ -21,14 +21,11 @@
         <canvas id="chart-dbu-last7"></canvas>
     </div>
     <div class="column is-half">
-        <canvas id="chart-average-dbu"></canvas>
+        <canvas id="chart-cumulative-cluster-time"></canvas>
     </div>
 </div>
 
 <div class="columns">
-    <div class="column is-half">
-        <canvas id="chart-cumulative-cluster-time"></canvas>
-    </div>
     <div class="column is-half">
         <canvas id="chart-running-jobs"></canvas>
     </div>
@@ -72,7 +69,6 @@
     var numjobs = JSON.parse('{{ numjobs | tojson | safe }}');
 
     interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
-    interval_dbu_mean = time_stats.map(({interval_dbu_mean}) => interval_dbu_mean);
     interval_sum = time_stats.map(({interval_sum}) => interval_sum);
     interval_cumsum = time_stats.map(({interval_cumsum}) => interval_cumsum);
     num_workers_max = time_stats.map(({num_workers_max}) => num_workers_max);
@@ -86,7 +82,6 @@
     chart('chart-dbu-over-time', 'DBU over time', 'DBU', 'line', true, labels, interval_dbu_sum);
     chart('chart-running-time', "Running time", 'hours', 'line', false, labels, interval_sum);
     chart('chart-dbu-last7', 'Last 7 days DBU', 'DBU', 'line', true, seven_days_label, last_7_dbu);
-    chart('chart-average-dbu', 'Average DBU', 'DBU', 'line', false, labels, interval_dbu_mean);
     chart('chart-cumulative-cluster-time', 'Cumulative Cluster time', 'hours', 'line', true, labels, interval_cumsum);
     chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);
 
