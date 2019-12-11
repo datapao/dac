@@ -191,14 +191,8 @@ def view_workspaces():
     workspaces = session.query(Workspace).all()
     level_info_data = get_level_info_data()
 
-    users_by_workspaces = {}
-    for workspace in workspaces:
-        users = [uw.user for uw in workspace.user_workspaces]
-        users_by_workspaces.setdefault(workspace.name, []).extend(users)
-
     return render_template('workspaces.html',
                            workspaces=workspaces,
-                           users_by_workspaces=users_by_workspaces,
                            data=level_info_data)
 
 

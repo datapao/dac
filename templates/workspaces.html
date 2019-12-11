@@ -34,33 +34,4 @@
         </tbody>
     </table>
 
-
-    <h2 class="subtitle">Users</h2>
-    <table class="table is-hoverable is-fullwidth">
-        {% for (workspace_name, users) in users_by_workspaces.items() %}
-        <thead>
-            <tr>
-                <th colspan=4>{{ workspace_name }}</th>
-            </tr>
-            <tr>
-                <th>Username</th>
-                <th>Full name</th>
-                <th>Primary e-mail</th>
-                <th>DBUs used last 7 days</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in users %}
-            <tr>
-                <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
-                <td>{{ user.name }}</td>
-                <td>{{ user.primary_email }}</td>
-                <td>{{ user.dbu() | round(2, 'common') }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-        {% endfor %}
-    </table>
-
-
 {% endblock %}
