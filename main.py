@@ -14,9 +14,11 @@ from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from aggregation import concat_dfs, get_time_index, get_time_grouper
-from aggregation import aggregate, get_cluster_dbus, aggregate_for_entity
+from aggregation import aggregate, get_cluster_dbus, get_running_jobs
+from aggregation import get_last_7_days_dbu, aggregate_for_entity
+from aggregation import aggregate_by_types
 from db import engine_url, create_db, Base
-from db import Workspace, Cluster, Job, User, ScraperRun
+from db import Workspace, Cluster, JobRun, User, ScraperRun
 from scraping import scrape, start_scheduled_scraping
 from scraping import load_workspaces, export_workspaces
 
@@ -47,6 +49,7 @@ def format_datetime(value):
 app.jinja_env.filters['datetime'] = format_datetime
 
 
+@functools.lru_cache(maxsize=None)
 def get_settings():
     json_path = os.getenv('DAC_CONFIG_JSON')
     with open(json_path, 'r') as json_file:
@@ -58,6 +61,7 @@ def get_level_info_data():
     session = create_session()
     workspaces = session.query(Workspace)
 
+    # PRICE CONFIG
     price_settings = {setting['type']: setting['value']
                       for setting in get_settings().get('prices')}
     interactive_dbu_price = price_settings['interactive']
@@ -70,52 +74,19 @@ def get_level_info_data():
     actives = concat_dfs(workspace.state_df(active_only=True)
                          for workspace in workspaces)
 
-    dbu_count = get_cluster_dbus(actives)
-    dbu_cost = dbu_count * interactive_dbu_price
+    dbu_counts = get_cluster_dbus(actives)
+    dbu_cost = (dbu_counts['interactive'] * interactive_dbu_price
+                + dbu_counts['job'] * job_dbu_price)
 
     return {
         "clusters": cluster_count,
         "workspaces": workspace_count,
         "user_count": user_count,
-        "daily_dbu": dbu_count,
+        "daily_dbu": dbu_counts.sum(),
         "daily_dbu_cost": dbu_cost,
         "interactive_dbu_price": interactive_dbu_price,
         "job_dbu_price": job_dbu_price
     }
-
-
-def get_running_jobs(session):
-    jobs = pd.DataFrame([{'job_id': job.job_id,
-                          'workspace_id': job.workspace_id,
-                          'user_id': job.creator_user_name,
-                          'name': job.name,
-                          'timestamp': job.created_time}
-                         for job in session.query(Job).all()])
-    numbjobs_dict = {}
-    if not jobs.empty:
-        numjobs = (jobs
-                   .groupby(get_time_grouper('timestamp'))
-                   [['job_id']]
-                   .count()
-                   .reindex(get_time_index(30), fill_value=0))
-        numjobs['ts'] = numjobs.index.format()
-        numbjobs_dict = numjobs.to_dict('records')
-
-    return numbjobs_dict
-
-
-def get_last_7_days_dbu(states: pd.DataFrame) -> dict:
-    last7dbu_dict = {}
-    if not states.empty:
-        last7dbu = (aggregate(df=states,
-                              col='interval_dbu',
-                              by=get_time_grouper('timestamp'),
-                              aggfunc='sum',
-                              since_days=7)
-                    .reindex(get_time_index(7), fill_value=0))
-        last7dbu['ts'] = last7dbu.index.format()
-        last7dbu_dict = last7dbu.to_dict('records')
-    return last7dbu_dict
 
 
 # ======= DASHBOARD =======
@@ -123,17 +94,22 @@ def get_last_7_days_dbu(states: pd.DataFrame) -> dict:
 def view_dashboard():
     session = create_session()
     clusters = session.query(Cluster).all()
+    jobs = session.query(JobRun).all()
     states = concat_dfs(cluster.state_df() for cluster in clusters)
 
     level_info_data = get_level_info_data()
-    numbjobs_dict = get_running_jobs(session)
-    last7dbu_dict = get_last_7_days_dbu(states)
+    numbjobs_dict = get_running_jobs(jobs)
+    last7dbu_dict = aggregate_by_types(states, get_last_7_days_dbu)
 
     time_stats_dict = {}
     if not states.empty:
-        cost_summary, time_stats = aggregate_for_entity(states)
-        time_stats['dbu_cumsum'] = time_stats['interval_dbu_sum'].cumsum()
-        time_stats_dict = time_stats.to_dict("records")
+        results = aggregate_by_types(states, aggregate_for_entity)
+        time_stats_dict = {}
+        cost_summary_dict = {}
+        for key, (cost_summary, time_stats) in results.items():
+            time_stats['dbu_cumsum'] = time_stats['interval_dbu_sum'].cumsum()
+            time_stats_dict[key] = time_stats.to_dict("records")
+            cost_summary_dict[key] = cost_summary.to_dict()
 
     return render_template('dashboard.html',
                            time_stats=time_stats_dict,
@@ -152,10 +128,29 @@ def view_workspace(workspace_id):
                  .one())
     states = workspace.state_df()
 
+    # PRICE CONFIG
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
+
     if not states.empty:
-        cost_summary, time_stats = aggregate_for_entity(states)
-        cost_summary_dict = cost_summary.to_dict()
-        time_stats_dict = time_stats.to_dict("records")
+        results = aggregate_by_types(states, aggregate_for_entity)
+        time_stats_dict = {}
+        cost_summary_dict = {}
+        for key, (cost_summary, time_stats) in results.items():
+            time_stats_dict[key] = time_stats.to_dict("records")
+            cost_summary = cost_summary.to_dict()
+            cost = cost_summary['interval_dbu'] * price_settings[key]
+            weekly_cost = (cost_summary['weekly_interval_dbu_sum']
+                           * price_settings[key])
+            cost_summary['cost'] = cost
+            cost_summary['weekly_cost'] = weekly_cost
+            cost_summary_dict[key] = cost_summary
+
+        # TODO: fix this ugly merge
+        cost_summary_dict = {key: (cost_summary_dict['interactive'][key]
+                                   + cost_summary_dict['job'][key])
+                             for key in cost_summary_dict['job']}
+
         top_users = (aggregate(df=states,
                                col='interval_dbu',
                                by='user_id',
@@ -167,22 +162,29 @@ def view_workspace(workspace_id):
                           .loc[~top_users.user_id.isin(['UNKONWN'])]
                           .to_dict("records")
                           [:3])
-
     else:
         cost_summary_dict = {
             "interval": 0.0,
             "interval_dbu": 0.0,
             "weekly_interval_sum": 0.0,
             "weekly_interval_dbu_sum": 0.0,
+            "cost": 0.0,
+            "weekly_cost": 0.0
         }
-        time_stats_dict = {}
+        time_stats_dict = {'interactive': {}, 'job': {}}
         top_users_dict = {}
+
+    clusters_by_type = {}
+    for cluster in workspace.clusters:
+        clusters_by_type.setdefault(cluster.cluster_type(), []).append(cluster)
 
     return render_template('workspace.html',
                            workspace=workspace,
+                           clusters_by_type=clusters_by_type,
                            cost=cost_summary_dict,
                            time_stats=time_stats_dict,
-                           top_users=top_users_dict)
+                           top_users=top_users_dict,
+                           empty=states.empty)
 
 
 @app.route('/workspaces')
@@ -190,7 +192,6 @@ def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
     level_info_data = get_level_info_data()
-
 
     return render_template('workspaces.html',
                            workspaces=workspaces,
@@ -206,12 +207,23 @@ def view_cluster(cluster_id):
                .filter(Cluster.cluster_id == cluster_id)
                .one())
     states = cluster.state_df()
+    cluster_type = cluster.cluster_type()
+
+    # PRICE CONFIG
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
 
     cost_summary, time_stats = aggregate_for_entity(states)
+    cost_summary = cost_summary.to_dict()
+    cost = cost_summary['interval_dbu'] * price_settings[cluster_type]
+    weekly_cost = (cost_summary['weekly_interval_dbu_sum']
+                   * price_settings[cluster_type])
+    cost_summary['cost'] = cost
+    cost_summary['weekly_cost'] = weekly_cost
 
     return render_template('cluster.html',
                            cluster=cluster,
-                           cost=cost_summary.to_dict(),
+                           cost=cost_summary,
                            time_stats=time_stats.to_dict("records"))
 
 
@@ -219,10 +231,19 @@ def view_cluster(cluster_id):
 def view_clusters():
     session = create_session()
     clusters = session.query(Cluster).all()
-    level_info_data = get_level_info_data()
     states = concat_dfs(cluster.state_df() for cluster in clusters)
+    level_info_data = get_level_info_data()
 
-    cost_summary, time_stats = aggregate_for_entity(states)
+    # PRICE CONFIG
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
+
+    if not states.empty:
+        results = aggregate_by_types(states, aggregate_for_entity)
+        time_stats_dict = {}
+        for key, (_, time_stats) in results.items():
+            time_stats_dict[key] = time_stats.to_dict("records")
+
     cluster_dbus = (aggregate(df=states,
                               col="interval_dbu",
                               by="cluster_id",
@@ -230,11 +251,16 @@ def view_clusters():
                     .rename(columns={'interval_dbu': 'dbu'})
                     .dbu.to_dict())
 
+    clusters_by_type = {}
+    for cluster in clusters:
+        clusters_by_type.setdefault(cluster.cluster_type(), []).append(cluster)
+
     return render_template('clusters.html',
-                           clusters=clusters,
+                           clusters_by_type=clusters_by_type,
+                           price_settings=price_settings,
                            data=level_info_data,
                            cluster_dbus=cluster_dbus,
-                           time_stats=time_stats.to_dict("records"))
+                           time_stats=time_stats_dict)
 
 
 #  ======= USER =======
@@ -247,12 +273,33 @@ def view_user(username):
             .one())
     states = user.state_df()
 
-    cost_summary, time_stats = aggregate_for_entity(states)
+    # PRICE CONFIG
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
+
+    if not states.empty:
+        results = aggregate_by_types(states, aggregate_for_entity)
+        time_stats_dict = {}
+        cost_summary_dict = {}
+        for key, (cost_summary, time_stats) in results.items():
+            time_stats_dict[key] = time_stats.to_dict("records")
+            cost_summary = cost_summary.to_dict()
+            cost = cost_summary['interval_dbu'] * price_settings[key]
+            weekly_cost = (cost_summary['weekly_interval_dbu_sum']
+                           * price_settings[key])
+            cost_summary['cost'] = cost
+            cost_summary['weekly_cost'] = weekly_cost
+            cost_summary_dict[key] = cost_summary
+
+        # TODO: fix this ugly merge
+        cost_summary_dict = {key: (cost_summary_dict['interactive'][key]
+                                   + cost_summary_dict['job'][key])
+                             for key in cost_summary_dict['job']}
 
     return render_template('user.html',
                            user=user,
-                           cost=cost_summary.to_dict(),
-                           time_stats=time_stats.to_dict("records"))
+                           cost=cost_summary_dict,
+                           time_stats=time_stats_dict)
 
 
 @app.route('/users')

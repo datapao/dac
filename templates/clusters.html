@@ -6,64 +6,69 @@
 
 
 <div class="columns">
-  <div class="column is-half">
-      <canvas id="chart-price"></canvas>
-  </div>
-  <div class="column is-half">
-      <canvas id="chart-clusters"></canvas>
-  </div>
+    <div class="column is-half">
+        <canvas id="chart-dbus"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-runtime"></canvas>
+    </div>
 </div>
 
 
 <table class="table is-hoverable is-fullwidth">
-  <thead>
-    <tr>
-      <td>Name</td>
-      <td>State</td>
-      <td>ID</td>
-      <td>Workspace</td>
-      <td>Driver type</td>
-      <td>Worker type</td>
-      <td>Workers</td>
-      <td>DBU / hour</td>
-      <td>Last 7 days DBU</td>
-      <td>Cost / hour</td>
-    </tr>
-  <tbody>
-    {% for cluster in clusters %}
-    <tr>
-      <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
-      <td>{{ cluster.state }}</td>
-      <td>{{ cluster.cluster_id }}</td>
-      <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
-      <td>{{ cluster.driver_type }}</td>
-      <td>{{ cluster.worker_type }}</td>
-      <td>{{ cluster.num_workers }}</td>
-      <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
-      <td>{{ cluster_dbus.get(cluster.cluster_id, 0.0) | round(2, 'common') }}</td>
-      <td>${{ (cluster.dbu_per_hour() * data.interactive_dbu_price) | round(2, 'common') }}</td>
-    </tr>
+    {% for cluster_type in ['interactive', 'job'] %}
+    {% set clusters = clusters_by_type[cluster_type] %}
+    <thead>
+        <tr><th colspan=10>{{ cluster_type.capitalize() }}</th></tr>
+        <tr>
+            <td>Name</td>
+            <td>State</td>
+            <td>ID</td>
+            <td>Workspace</td>
+            <td>Driver type</td>
+            <td>Worker type</td>
+            <td>Workers</td>
+            <td>DBU / hour</td>
+            <td>Last 7 days DBU</td>
+            <td>Cost / hour</td>
+        </tr>
+    </thead>
+    <tbody>
+        {% for cluster in clusters %}
+        <tr>
+            <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
+            <td>{{ cluster.state }}</td>
+            <td>{{ cluster.cluster_id }}</td>
+            <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
+            <td>{{ cluster.driver_type }}</td>
+            <td>{{ cluster.worker_type }}</td>
+            <td>{{ cluster.num_workers }}</td>
+            <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
+            <td>{{ cluster_dbus.get(cluster.cluster_id, 0.0) | round(2, 'common') }}</td>
+            <td>${{ (cluster.dbu_per_hour() * price_settings[cluster_type]) | round(2, 'common') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
     {% endfor %}
-
-  </tbody>
-
-
-  </tr>
-  </thead>
 </table>
 
 
 <script>
 
-  var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
 
-  interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
-  interval_sum = time_stats.map(({interval_sum}) => interval_sum);
-  labels = time_stats.map(({ts}) => ts);
-  console.log(time_stats);
+    interactive_time_stats = time_stats['interactive'];
+    interactive_interval_dbu_sum = interactive_time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    interactive_interval_sum = interactive_time_stats.map(({interval_sum}) => interval_sum);
 
-  chart('chart-price', false, 'Total DBU', 'bar', true, labels, interval_dbu_sum);
-  chart('chart-clusters', false, 'Running time (hours)', 'line', false, labels, interval_sum);
+    job_time_stats = time_stats['job'];
+    job_interval_dbu_sum = job_time_stats.map(({interval_dbu_sum}) => interval_dbu_sum);
+    job_interval_sum = job_time_stats.map(({interval_sum}) => interval_sum);
+
+    labels = time_stats['job'].map(({ ts }) => ts);
+
+    stacked_chart('chart-dbus', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
+    stacked_chart('chart-runtime', 'Total Run time (hours)', 'line', false, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
 
 </script>
 
