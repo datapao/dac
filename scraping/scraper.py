@@ -22,6 +22,16 @@ from scraping.parser import parse_events, query_instance_types
 log = logging.getLogger("dac-scraper")
 
 
+def query_paginated(query_func, query_params, key):
+    items = [query_func(**query_params)]
+    while 'next_page' in items[-1].keys():
+        offset = items[-1]['next_page']
+        items.append(query_func(**offset))
+
+    items = [i for item in items for i in item.get(key, [])]
+    return items
+
+
 def scrape_event(cluster, event_dict, session, api, result):
     event = Event(
         cluster_id=event_dict["cluster_id"],
@@ -88,9 +98,10 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
     session.merge(cluster)
     result.num_clusters += 1
     log.debug(f"Started scraping events for cluster {cluster.cluster_name}")
-    events = (api.cluster
-              .get_events(cluster_id=cluster.cluster_id)
-              .get('events', []))
+
+    events = query_paginated(query_func=api.cluster.get_events,
+                             query_params={'cluster_id': cluster.cluster_id},
+                             key='events')
     for event in events:
         scrape_event(cluster, event, session, api, result)
 
@@ -169,8 +180,8 @@ def scrape_jobs(workspace, job_dict, session, api, result):
     )
     session.merge(job)
     result.num_jobs += 1
-    job_runs_response = api.jobs.list_runs(
-        job_id=job_dict["job_id"], limit=120)
+    job_runs_response = api.jobs.list_runs(job_id=job_dict["job_id"],
+                                           limit=120)
     job_runs = job_runs_response.get("runs", [])
     log.debug(f"Scraping job runs for job_id: {job_dict['job_id']}")
     for job_run in job_runs:
@@ -233,15 +244,15 @@ def scrape_workspace(workspace, session, instance_types):
 
     # CLUSTERS
     log.info(f"Started scraping clusters in workspace {workspace.name}.")
-    clusters = api.cluster.list_clusters()
-    for cluster in clusters.get("clusters", []):
+    clusters = query_paginated(api.cluster.list_clusters, {}, 'clusters')
+    for cluster in clusters:
         scrape_cluster(workspace, cluster, instance_types, session, api, result)
     log.info(f"Finished scraping clusters in workspace {workspace.name}.")
 
     # JOBS
     log.info(f"Started scraping jobs in workspace {workspace.name}.")
-    jobs = api.jobs.list_jobs()
-    for job in jobs.get("jobs", []):
+    jobs = query_paginated(api.jobs.list_jobs, {}, 'jobs')
+    for job in jobs:
         scrape_jobs(workspace, job, session, api, result)
     log.info(f"Finished scraping jobs in workspace {workspace.name}. "
              f"Jobs scraped: {len(jobs)}")

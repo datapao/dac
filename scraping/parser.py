@@ -173,7 +173,7 @@ class EventParser:
             'timestamp': first['timestamp'],
             'cluster_id': first['cluster_id'],
             'state': 'UNKNOWN',
-            'user_id': 'UNKONWN',
+            'user_id': 'UNKNOWN',
             'driver_type': first['driver_type'],
             'worker_type': first['worker_type'],
             'num_workers': 0,
@@ -191,7 +191,8 @@ class EventParser:
             status = self.get_new_status(status, to_event)
 
         cluster_type = self.determine_cluster_type(cluster_name)
-        df = pd.DataFrame(rows)
+        # exclude starting status
+        df = pd.DataFrame(rows[1:])
         df['dbu'] = self.calculate_dbu(df, cluster_type)
 
         return df
@@ -326,8 +327,6 @@ def parse_events(session: "Session",
     start_time = time.time()
 
     # Querying required info from db / web
-    # events = query_events(session)  # related todo in scraping/scraper.py:98
-    # instance_types = query_instance_types()  # prevent web query every run
     cluster_names = query_cluster_names(session)
 
     # Parsing
