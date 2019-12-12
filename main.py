@@ -192,10 +192,14 @@ def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
     level_info_data = get_level_info_data()
+    # PRICE CONFIG
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
 
     return render_template('workspaces.html',
                            workspaces=workspaces,
-                           data=level_info_data)
+                           data=level_info_data,
+                           price_settings=price_settings)
 
 
 #  ======= CLUSTER =======

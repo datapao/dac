@@ -112,6 +112,9 @@ class Cluster(Base):
     def cluster_type(self):
         return 'job' if self.cluster_name.startswith('job') else 'interactive'
 
+    def cost_per_hour(self, price_config):
+        return self.dbu_per_hour() * price_config[self.cluster_type()]
+
 
 class Workspace(Base):
     __tablename__ = "workspaces"
@@ -164,6 +167,10 @@ class Workspace(Base):
 
     def dbu_per_hour(self):
         return sum([cluster.dbu_per_hour() for cluster in self.clusters])
+
+    def cost_per_hour(self, price_config):
+        return sum([cluster.cost_per_hour(price_config)
+                    for cluster in self.clusters])
 
     def to_dict(self):
         return {attr: getattr(self, attr) for attr in self.__attributes__}
