@@ -97,6 +97,7 @@ class Cluster(Base):
     def state_df(self):
         df = (pd.DataFrame([state.to_dict() for state in self.cluster_states])
               .sort_values('timestamp'))
+        df['cluster_type'] = self.cluster_type()
         df["interval_dbu"] = df["dbu"] * df["interval"]
 
         return df
@@ -107,6 +108,9 @@ class Cluster(Base):
     def dbu_per_hour(self):
         df = self.state_df()
         return df.loc[df.state.isin(['RUNNING']), 'dbu'].iloc[-1]
+
+    def cluster_type(self):
+        return 'job' if self.cluster_name.startswith('job') else 'interactive'
 
 
 class Workspace(Base):
@@ -138,10 +142,17 @@ class Workspace(Base):
 
         return df
 
-    def users(self, active_only=False):
+    def users(self, with_id=False, active_only=False):
         users = [uw.user for uw in self.user_workspaces]
+
         if active_only:
             users = [user for user in users if user.active()]
+
+        if with_id:
+            usernames = [user.username for user in users]
+            users = [(uw.user_id, uw.user) for uw in self.user_workspaces
+                     if uw.user.username in usernames]
+
         return users
 
     def dbu(self, since_days=7):
