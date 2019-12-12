@@ -9,11 +9,11 @@
         <table class="table">
             <tr>
                 <th>ID</th>
-                <td>{{cluster.cluster_id}}</td>
+                <td>{{ cluster.cluster_id }}</td>
             </tr>
             <tr>
                 <th>Cloud provider</th>
-                <td>{{cluster.workspace.type}}</td>
+                <td>{{ cluster.workspace.type }}</td>
             </tr>
             <tr>
                 <th>Workspace</th>
@@ -24,23 +24,23 @@
 
             <tr>
                 <th>Driver type</th>
-                <td>{{cluster.driver_type}}</td>
+                <td>{{ cluster.driver_type }}</td>
             </tr>
             <tr>
                 <th>Worker type</th>
-                <td>{{cluster.worker_type}}</td>
+                <td>{{ cluster.worker_type }}</td>
             </tr>
             <tr>
                 <th>Workers</th>
-                <td>{{cluster.num_workers}}</td>
+                <td>{{ cluster.num_workers }}</td>
             </tr>
             <tr>
                 <th>Created by</th>
-                <td>{{cluster.creator_user_name}}</td>
+                <td><a href={{ url_for("view_user", username=cluster.creator_user_name) }}>{{ cluster.creator_user_name }}</a></td>
             </tr>
             <tr>
                 <th>Autotermination (min)</th>
-                <td>{{cluster.autotermination_minutes}}</td>
+                <td>{{ cluster.autotermination_minutes }}</td>
             </tr>
 
         </table>
@@ -49,19 +49,27 @@
         <table class="table">
             <tr>
                 <th>Running time (total)</th>
-                <td>{{cost.interval | round(1, 'common')}} h</td>
+                <td>{{ cost.interval | round(1, 'common') }} h</td>
             </tr>
             <tr>
                 <th>Total DBU (total)</th>
-                <td>{{cost.interval_dbu | round(1, 'common')}}</td>
+                <td>{{ cost.interval_dbu | round(1, 'common') }}</td>
+            </tr>
+            <tr>
+                <th>Total Cost</th>
+                <td>${{ cost.cost | round(2, 'common')}}</td>
             </tr>
             <tr>
                 <th>Running time (7 days)</th>
-                <td>{{cost.weekly_interval_sum | round(1, 'common')}} h</td>
+                <td>{{ cost.weekly_interval_sum | round(1, 'common') }} h</td>
             </tr>
             <tr>
                 <th>Total DBU (7 days)</th>
-                <td>{{cost.weekly_interval_dbu_sum | round(1, 'common')}}</td>
+                <td>{{ cost.weekly_interval_dbu_sum | round(1, 'common') }}</td>
+            </tr>
+            <tr>
+                <th>Total Cost (7 days)</th>
+                <td>${{ cost.weekly_cost | round(2, 'common')}}</td>
             </tr>
         </table>
     </div>
@@ -89,9 +97,9 @@
         <tbody>
             {%for event in cluster.eventFilterNot(["DRIVER_HEALTHY"])%}
             <tr>
-                <td>{{event.timestamp}}</td>
-                <td>{{event.type}}</td>
-                <td>{{event.human_details()}}</td>
+                <td>{{ event.timestamp }}</td>
+                <td>{{ event.type }}</td>
+                <td>{{ event.human_details() }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -105,10 +113,10 @@
     interval_dbu_sum = time_stats.map(({interval_dbu_sum}) => interval_dbu_sum)
     interval_sum = time_stats.map(({interval_sum}) => interval_sum)
     labels = time_stats.map(({ts}) => ts)
-    console.log(time_stats)
 
     chart('chart-price', false, 'Total DBU', 'bar', true, labels, interval_dbu_sum);
     chart('chart-clusters', false, 'Running time (hours)', 'line', false, labels, interval_sum);
+
 </script>
 
 {% endblock %}
