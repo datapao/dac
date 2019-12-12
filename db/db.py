@@ -178,9 +178,10 @@ class Workspace(Base):
 
 class Event(Base):
     __tablename__ = "events"
+    event_id = Column(Integer, primary_key=True)
     cluster_id = Column(String, ForeignKey("clusters.cluster_id"),
-                        primary_key=True)
-    timestamp = Column(DateTime, primary_key=True)
+                        nullable=False)
+    timestamp = Column(DateTime, nullable=False)
     details = Column(JSON, nullable=False)
     type = Column(String, nullable=False)
     cluster = relationship(Cluster)
