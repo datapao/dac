@@ -33,7 +33,7 @@ function chart(chart_id, title, data_label, type, fill, labels, data) {
     var myChart = new Chart(ctx, chart_setup);
 }
 
-// TODO: data labels should be captioned
+
 function stacked_chart(chart_id, title, type, fill, labels, interactive_label, interactive_data, job_label, job_data) {
     var ctx = document.getElementById(chart_id).getContext('2d');
     var chart_setup = {
@@ -66,7 +66,8 @@ function stacked_chart(chart_id, title, type, fill, labels, interactive_label, i
                         beginAtZero: true
                     },
                     stacked: true
-                }]
+                }],
+                xAxes: [{ stacked: true }]
             }
         }
     };
