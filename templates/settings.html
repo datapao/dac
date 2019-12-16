@@ -5,18 +5,10 @@
 
 <div class="columns">
     <table class="table">
-        {% for name, values in settings.items() %}
+        {% for name, value in settings.items() %}
         <tr>
             <th>{{ name }}</th>
-            <td>
-                <table>
-                    {% for value in values %}
-                    <tr>
-                        <td>{{ value }}</td>
-                    </tr>
-                    {% endfor %}
-                </table>
-            </td>
+            <td><pre>{{ value }}</pre></td>
         </tr>
         {% endfor %}
     </table>

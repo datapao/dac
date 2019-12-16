@@ -406,9 +406,20 @@ def add_new_workspace(form):
     return workspaces
 
 
-@app.route('/settings', methods=['GET', 'POST'])
+@app.route('/settings')
 def view_settings():
-    return render_template('settings.html', settings=get_settings())
+    settings = get_settings()
+    # obfuscation
+    settings['workspaces'] = [{key: (value
+                                     if key != 'token'
+                                     else '*' * 6 + value[-4:])
+                               for key, value in setting.items()}
+                              for setting in settings['workspaces']]
+    print(settings)
+    settings = {key: json.dumps(value, indent=4, sort_keys=True)
+                for key, value in settings.items()}
+    print(settings)
+    return render_template('settings.html', settings=settings)
 
 
 def parse_args():
