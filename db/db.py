@@ -92,7 +92,8 @@ class Cluster(Base):
     cluster_states = relationship("ClusterStates")
 
     def eventFilterNot(self, types):
-        return [e for e in self.events if e.type not in types]
+        sorted_events = sorted(self.events, key=lambda x: x.timestamp)
+        return [e for e in sorted_events if e.type not in types]
 
     def state_df(self):
         df = (pd.DataFrame([state.to_dict() for state in self.cluster_states])
@@ -188,20 +189,71 @@ class Event(Base):
 
     def human_details(self):
         patterns = {
+            "CREATING": lambda x: "Cluster is created by: {user}".format(**x),
+            "EXPANDED_DISK": lambda x: ("Disk size is changed "
+                                        "from {previous_disk_size:,} "
+                                        "to {disk_size:,}"
+                                        .format(**x)),
+            "STARTING": lambda x: "Cluster is started by {user}".format(**x),
+            "RESTARTING": lambda x: ("Cluster is restarted by {user}"
+                                     .format(**x)),
             "TERMINATING": lambda x: ("Cluster is terminated due to {}"
                                       .format(x["reason"]["code"]
                                               .capitalize())),
-            "DRIVER_HEALTHY": lambda _: "Driver is healthy",
+            "EDITED": lambda x: ("Cluster is edited by {user}:\n{changes}"
+                                 .format(user=x['user'],
+                                         changes=self.parse_config_edits(x))),
             "RUNNING": lambda x: ("Cluster is running with "
                                   "{current_num_workers} workers "
                                   "(target: {target_num_workers})"
                                   .format(**x)),
-            "STARTING": lambda x: "Cluster is started by {user}".format(**x),
-            "CREATING": lambda x: "Cluster is created by: {user}".format(**x)
+            "RESIZING": lambda x: ("Cluster resize from {current_num_workers} "
+                                   "to {target_num_workers}.".format(**x)
+                                   + ("Resize is initiated by {user}."
+                                      .format(user=x.get('user'))
+                                      if 'user' in x.keys() else "")),
+            "UPSIZE_COMPLTED": lambda x: ("Cluster is now running with "
+                                          "{current_num_workers} workers "
+                                          "(target: {target_num_workers})"
+                                          .format(**x)),
+            "DRIVER_HEALTHY": lambda _: "Driver is healthy",
+            "DRIVER_UNAVAILABLE": lambda _: "Driver is not available.",
         }
         if self.type not in patterns:
             return self.details
         return patterns[self.type](self.details)
+
+    def difference(self, first, second, parent_key=None):
+        diff = []
+        if isinstance(first, dict):
+            for key in first:
+                if key not in second:
+                    diff.append(f"{key} removed.")
+                else:
+                    changes = self.difference(first[key], second[key],
+                                              parent_key)
+                    if len(changes):
+                        diff.append(f'{key} {", ".join(changes)}')
+
+        elif isinstance(first, list):
+            diff = [self.difference(first_item, second_item, parent_key)
+                    for first_item, second_item in zip(first, second)]
+        else:
+            if first != second:
+                diff.append(f'{parent_key if parent_key else ""} '
+                            f'changed from {first} to {second}')
+        return diff
+
+    def parse_config_edits(self, config):
+        prev = config.get('previous_attributes')
+        act = config.get('attributes')
+
+        if prev is None or act is None:
+            return 'No changes made.'
+
+        diff = self.difference(prev, act)
+
+        return '\n- '.join(diff)
 
 
 class Job(Base):

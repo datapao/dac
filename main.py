@@ -146,7 +146,6 @@ def view_workspace(workspace_id):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        # TODO: fix this ugly merge
         cost_summary_dict = {key: (cost_summary_dict['interactive'][key]
                                    + cost_summary_dict['job'][key])
                              for key in cost_summary_dict['job']}
@@ -192,6 +191,7 @@ def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
     level_info_data = get_level_info_data()
+
     # PRICE CONFIG
     price_settings = {setting['type']: setting['value']
                       for setting in get_settings().get('prices')}
@@ -295,7 +295,6 @@ def view_user(username):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        # TODO: fix this ugly merge
         cost_summary_dict = {key: (cost_summary_dict['interactive'][key]
                                    + cost_summary_dict['job'][key])
                              for key in cost_summary_dict['job']}
