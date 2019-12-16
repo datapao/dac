@@ -19,7 +19,7 @@ def get_time_index(since_days=30):
 
 def concat_dfs(dfs):
     dfs = list(dfs)
-    return pd.concat(dfs) if len(dfs) else pd.DataFrame()
+    return pd.concat(dfs, sort=False) if len(dfs) else pd.DataFrame()
 
 
 def aggregate(df: pd.DataFrame,

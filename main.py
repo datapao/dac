@@ -1,5 +1,4 @@
 import argparse
-import configparser
 import functools
 import logging
 import json
@@ -31,6 +30,7 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 app = Flask(__name__, static_folder='templates/static/')
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY') or 'whoops'
+app.config['CONFIG_PATH'] = os.getenv('FLASK_CONFIG_PATH')
 engine = create_engine(engine_url)
 Base.metadata.bind = engine
 
@@ -50,10 +50,12 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 
 @functools.lru_cache(maxsize=None)
-def get_settings():
-    json_path = os.getenv('DAC_CONFIG_JSON')
-    with open(json_path, 'r') as json_file:
-        settings = json.load(json_file)
+def get_settings(path=None):
+    if path is None:
+        path = app.config.get('CONFIG_PATH')
+
+    with open(path, 'r') as config_file:
+        settings = json.load(config_file)
     return settings
 
 
@@ -409,25 +411,35 @@ def view_settings():
     return render_template('settings.html', settings=get_settings())
 
 
-if __name__ == "__main__":
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run',
                         choices=["create_db", "scrape", "scrape_once"])
     parser.add_argument('-c', '--config', type=str,
-                        help='path to config file to use', default="config.ini")
+                        help='path to config file to use',
+                        default="configs/config.json")
     args = parser.parse_args()
 
+    if not os.path.exists(args.config):
+        raise OSError(f"Couldn't find config file at {args.config}.")
+
     command = args.command
-    config = configparser.ConfigParser()
-    config.read(args.config)
-    log.info("Command: %s", command)
-    log.debug("config path: %s", args.config)
+    with open(args.config) as configfile:
+        config = json.load(configfile)
+
+    return command, config, configpath
+
+
+if __name__ == "__main__":
+    log.info(f"Command: {command}")
+    log.debug(f"Config loaded from: {args.configpath}")
+
+    command, config, configpath = parse_args()
 
     if command == "scrape":
-        interval = config["scraper"].getfloat("interval")
-        path = os.getenv('DAC_CONFIG_JSON')
-        thread = start_scheduled_scraping(interval, path)
+        interval = float(config["scraper"].get("interval"))
+        thread = start_scheduled_scraping(interval, configpath)
     elif command == "create_db":
         create_db()
     elif command == "scrape_once":
-        scrape(os.getenv('DAC_CONFIG_JSON'))
+        scrape(configpath)

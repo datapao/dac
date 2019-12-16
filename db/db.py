@@ -212,10 +212,10 @@ class Event(Base):
                                    + ("Resize is initiated by {user}."
                                       .format(user=x.get('user'))
                                       if 'user' in x.keys() else "")),
-            "UPSIZE_COMPLTED": lambda x: ("Cluster is now running with "
-                                          "{current_num_workers} workers "
-                                          "(target: {target_num_workers})"
-                                          .format(**x)),
+            "UPSIZE_COMPLETED": lambda x: ("Cluster is now running with "
+                                           "{current_num_workers} workers "
+                                           "(target: {target_num_workers})"
+                                           .format(**x)),
             "DRIVER_HEALTHY": lambda _: "Driver is healthy",
             "DRIVER_UNAVAILABLE": lambda _: "Driver is not available.",
         }
