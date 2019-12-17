@@ -115,7 +115,7 @@
     labels = time_stats.map(({ts}) => ts)
 
     chart('chart-price', false, 'Total DBU', 'bar', true, labels, interval_dbu_sum);
-    chart('chart-clusters', false, 'Running time (hours)', 'line', false, labels, interval_sum);
+    chart('chart-clusters', false, 'Running time (hours)', 'line', true, labels, interval_sum);
 
 </script>
 

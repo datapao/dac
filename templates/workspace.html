@@ -193,7 +193,7 @@
     labels = time_stats['job'].map(({ ts }) => ts);
 
     stacked_chart('chart-price', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
-    stacked_chart('chart-clusters', 'Total Run time (hours)', 'line', false, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
+    stacked_chart('chart-clusters', 'Total Run time (hours)', 'line', true, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
     stacked_chart('chart-active-clusters', 'Active clusters', 'bar', true, labels, 'Interactive', interactive_active_clusters_cnt, 'Job', job_active_clusters_cnt);
     stacked_chart('chart-worker-hours', 'Worker hours', 'bar', true, labels, 'Interactive', interactive_worker_hours_sum, 'Job', job_worker_hours_sum);
     chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);

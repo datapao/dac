@@ -73,7 +73,7 @@
     var cluster_distribution = [{{ clusters_by_type['interactive'] | length }}, {{ clusters_by_type['job'] | length }}];
 
     stacked_chart('chart-dbus', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
-    stacked_chart('chart-runtime', 'Total Run time (hours)', 'line', false, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
+    stacked_chart('chart-runtime', 'Total Run time (hours)', 'line', true, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
     chart('chart-distribution', 'Interactive / Job clusters', 'count' ,'bar', false, ['Interactive', 'Job'], cluster_distribution);
 
 </script>

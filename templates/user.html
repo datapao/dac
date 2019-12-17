@@ -103,7 +103,7 @@
     labels = time_stats['job'].map(({ ts }) => ts);
 
     stacked_chart('chart-dbus', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
-    stacked_chart('chart-runtime', 'Total Run time (hours)', 'line', false, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
+    stacked_chart('chart-runtime', 'Total Run time (hours)', 'line', true, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
 
 </script>
 
