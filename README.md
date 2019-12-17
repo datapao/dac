@@ -1,7 +1,7 @@
 # Databricks Admin Center (DAC)
 Databricks Admin Center (DAC) solves the problem of cost- and performance monitoring, maintenance and overview of Databricks workspaces, clusters and users in one place.
 
-[img/screencast.gif]
+![](img/screencast.gif)
 
 
 ### Configuration
@@ -19,10 +19,10 @@ _configs/config.json_
     "workspaces": [
         {
             "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
-            "id": "workspace_id",
-            "type": "AZURE|AWS",
-            "name": "workspace_name",
-            "token": "token"
+            "id": "[workspace_id]",
+            "type": "[AZURE|AWS]",
+            "name": "[workspace_name]",
+            "token": "[token]"
           }, ...
     ],
     "prices": [
