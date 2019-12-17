@@ -30,7 +30,7 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.INFO)
 
 app = Flask(__name__, static_folder='templates/static/')
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY') or 'whoops'
-app.config['CONFIG_PATH'] = os.getenv('FLASK_CONFIG_PATH')
+app.config['CONFIG_PATH'] = os.getenv('DAC_CONFIG_PATH')
 engine = create_engine(engine_url)
 Base.metadata.bind = engine
 
@@ -250,12 +250,15 @@ def view_clusters():
         for key, (_, time_stats) in results.items():
             time_stats_dict[key] = time_stats.to_dict("records")
 
-    cluster_dbus = (aggregate(df=states,
-                              col="interval_dbu",
-                              by="cluster_id",
-                              since_days=7)
-                    .rename(columns={'interval_dbu': 'dbu'})
-                    .dbu.to_dict())
+        cluster_dbus = (aggregate(df=states,
+                                  col="interval_dbu",
+                                  by="cluster_id",
+                                  since_days=7)
+                        .rename(columns={'interval_dbu': 'dbu'})
+                        .dbu.to_dict())
+    else:
+        cluster_dbus = {cluster.cluster_id: 0.0 for cluster in clusters}
+        time_stats_dict = {'interactive': {}, 'job': {}}
 
     clusters_by_type = {}
     for cluster in clusters:
@@ -278,12 +281,41 @@ def view_user(username):
             .filter(User.username == username)
             .one())
     states = user.state_df()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
-
     if not states.empty:
+        workspaces = (
+            concat_dfs({(w.workspace.id, w.workspace.name): w.workspace.state_df()
+                        for w in user.user_workspaces})
+            .reset_index([0, 1])
+            .rename(columns={'level_0': 'workspace_id',
+                             'level_1': 'workspace_name'}))
+
+        last7_workspaces = (aggregate(df=workspaces,
+                                      col='interval_dbu',
+                                      by=['workspace_id', 'workspace_name'],
+                                      since_days=7)
+                            .rename(columns={'interval_dbu': 'last7dbu'}))
+
+        all_workspaces = (aggregate(df=workspaces,
+                                    col='interval_dbu',
+                                    by=['workspace_id', 'workspace_name'])
+                          .rename(columns={'interval_dbu': 'alltimedbu'}))
+
+        workspaces_dict = (
+            pd.merge(all_workspaces,
+                     last7_workspaces,
+                     how='left',
+                     left_index=True,
+                     right_index=True)
+            .fillna(0.0)
+            .reset_index()
+            .sort_values('last7dbu')
+            .to_dict('records')
+        )
+
+        # PRICE CONFIG
+        price_settings = {setting['type']: setting['value']
+                          for setting in get_settings().get('prices')}
+
         results = aggregate_by_types(states, aggregate_for_entity)
         time_stats_dict = {}
         cost_summary_dict = {}
@@ -300,9 +332,25 @@ def view_user(username):
         cost_summary_dict = {key: (cost_summary_dict['interactive'][key]
                                    + cost_summary_dict['job'][key])
                              for key in cost_summary_dict['job']}
+    else:
+        workspaces_dict = [{'workspace_id': w.workspace.id,
+                            'workspace_name': w.workspace.name,
+                            'last7dbu': 0.0,
+                            'alltimedbu': 0.0}
+                           for w in user.user_workspaces]
+        cost_summary_dict = {
+            "interval": 0.0,
+            "interval_dbu": 0.0,
+            "weekly_interval_sum": 0.0,
+            "weekly_interval_dbu_sum": 0.0,
+            "cost": 0.0,
+            "weekly_cost": 0.0
+        }
+        time_stats_dict = {'interactive': {}, 'job': {}}
 
     return render_template('user.html',
                            user=user,
+                           workspaces=workspaces_dict,
                            cost=cost_summary_dict,
                            time_stats=time_stats_dict)
 
@@ -381,31 +429,6 @@ def format_workspace_configs(configs):
     return ',\n'.join(formatted)
 
 
-def add_new_workspace(form):
-    json_path = app.config['WORKSPACE_JSON_PATH']
-    workspaces = load_workspaces(json_path)
-
-    workspace = {
-        'url': form.urlfield.data,
-        'id': form.idfield.data,
-        'type': form.typefield.data,
-        'name': form.namefield.data,
-        'token': form.tokenfield.data
-    }
-
-    # TODO: find tmp path / or modify scrape to accept workspace setup
-    export_workspaces([workspace], 'configs/new_workspace.json')
-    try:
-        scrape('configs/new_workspace.json')
-    except Exception as e:
-        return render_template('failed.html', error=e.message)
-    else:
-        workspaces.append(workspace)
-        export_workspaces(workspaces, json_path)
-
-    return workspaces
-
-
 @app.route('/settings')
 def view_settings():
     settings = get_settings()
@@ -415,10 +438,9 @@ def view_settings():
                                      else '*' * 6 + value[-4:])
                                for key, value in setting.items()}
                               for setting in settings['workspaces']]
-    print(settings)
     settings = {key: json.dumps(value, indent=4, sort_keys=True)
                 for key, value in settings.items()}
-    print(settings)
+
     return render_template('settings.html', settings=settings)
 
 
