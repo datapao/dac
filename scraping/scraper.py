@@ -273,14 +273,6 @@ def load_workspaces(json_path):
     return workspaces
 
 
-def export_workspaces(workspaces, json_path):
-    with open(json_path, 'w') as json_file:
-        for workspace in workspaces:
-            if isinstance(workspace, Workspace):
-                workspace = workspace.to_dict()
-            json_file.write(json.dumps(workspace) + '\n')
-
-
 def get_workspaces(json_path):
     return [Workspace(**workspace) for workspace in load_workspaces(json_path)]
 

@@ -21,19 +21,6 @@
                 <th>Primary e-mail</th>
                 <td>{{ user.primary_email}}</td>
             </tr>
-            <tr>
-                <th>Workspaces</th>
-                <td>
-                    <table>
-                        {% for workspace in user.user_workspaces %}
-                        <tr>
-                            <td><a href={{ url_for("view_workspace", workspace_id=workspace.workspace_id) }}>{{ workspace.workspace.name }}</a></td>
-                            <!-- TODO: add dbu/cost to this mini table -->
-                        </tr>
-                        {% endfor %}
-                    </table>
-                </td>
-            </tr>
         </table>
     </div>
 
@@ -77,6 +64,28 @@
         <canvas id="chart-runtime"></canvas>
     </div>
 </div>
+
+
+
+<h1 class='subtitle'>Workspaces</h1>
+<table class="table is-hoverable is-fullwidth">
+    <thead>
+        <tr>
+            <th>Workspace</th>
+            <th>DBU (last 7 days)</th>
+            <th>DBU (all time)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for workspace in workspaces %}
+        <tr>
+            <td><a href={{ url_for("view_workspace", workspace_id=workspace['workspace_id']) }}>{{ workspace['workspace_name'] }}</a></td>
+            <td>{{ workspace['last7dbu'] | round(2, 'common') }}</td>
+            <td>{{ workspace['alltimedbu'] | round(2, 'common') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 
 
 <script>

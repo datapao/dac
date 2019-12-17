@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from types import GeneratorType
 
 import pandas as pd
 
@@ -18,7 +19,8 @@ def get_time_index(since_days=30):
 
 
 def concat_dfs(dfs):
-    dfs = list(dfs)
+    if isinstance(dfs, GeneratorType):
+        dfs = list(dfs)
     return pd.concat(dfs, sort=False) if len(dfs) else pd.DataFrame()
 
 

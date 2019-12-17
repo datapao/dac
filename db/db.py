@@ -127,6 +127,7 @@ class Workspace(Base):
     token = Column(String, nullable=False)
     clusters = relationship(Cluster)
     user_workspaces = relationship('UserWorkspace', back_populates='workspace')
+    jobruns = relationship('JobRun')
     __attributes__ = ['id', 'name', 'url', 'type', 'token']
 
     def active_clusters(self):
