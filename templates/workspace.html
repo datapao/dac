@@ -112,62 +112,68 @@
 
 <h3 class="title is-3">Clusters</h3>
 <section class="section">
-    <table class="table is-hoverable is-fullwidth">
-        {% for cluster_type in ['interactive', 'job'] %}
-        {% set clusters = clusters_by_type[cluster_type] %}
-        <thead>
-            <tr><th colspan=10>{{ cluster_type.capitalize() }}</th></tr>
-            <tr>
-                <td>Name</td>
-                <td>State</td>
-                <td>ID</td>
-                <td>Workspace</td>
-                <td>Driver type</td>
-                <td>Worker type</td>
-                <td>Workers</td>
-            </tr>
-        </thead>
-        <tbody>
-            {% for cluster in clusters %}
-            <tr>
-                <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a>
-                </td>
-                <td>{{ cluster.state }}</td>
-                <td>{{ cluster.cluster_id }}</td>
-                <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
-                <td>{{ cluster.driver_type }}</td>
-                <td>{{ cluster.worker_type }}</td>
-                <td>{{ cluster.num_workers }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-        {% endfor %}
-    </table>
+    {% for cluster_type in ['interactive', 'job'] %}
+    <div id="{{ cluster_type }}-clusters-table">
+        <table class="table is-hoverable is-fullwidth">
+            {% set clusters = clusters_by_type[cluster_type] %}
+            <thead>
+                <tr><th colspan=10>{{ cluster_type.capitalize() }}</th></tr>
+                <tr>
+                    <td>Name</td>
+                    <td>State</td>
+                    <td>ID</td>
+                    <td>Workspace</td>
+                    <td>Driver type</td>
+                    <td>Worker type</td>
+                    <td>Workers</td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cluster in clusters %}
+                <tr>
+                    <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a>
+                    </td>
+                    <td>{{ cluster.state }}</td>
+                    <td>{{ cluster.cluster_id }}</td>
+                    <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
+                    <td>{{ cluster.driver_type }}</td>
+                    <td>{{ cluster.worker_type }}</td>
+                    <td>{{ cluster.num_workers }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div id="{{ cluster_type }}-clusters-box" class="box"></div>
+    {% endfor %}
 </section>
 {% endif %}
 
 <h3 class="title is-3">Users</h3>
 <section class="section">
-    <table class="table is-hoverable is-fullwidth">
-        <thead>
-            <tr>
-                <td>ID</td>
-                <td>Userame</td>
-                <td>Full name</td>
-                <td>Primary E-mail</td>
-            </tr>
-        </thead>
-        <tbody>
-            {%for user_id, user in workspace.users(with_id=True) %}
-            <tr>
-                <td>{{ user_id }}</td>
-                <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
-                <td>{{ user.name }}</td>
-                <td>{{ user.primary_email }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div id="users-table">
+        <table class="table is-hoverable is-fullwidth">
+            <thead>
+                <tr>
+                    <td>ID</td>
+                    <td>Userame</td>
+                    <td>Full name</td>
+                    <td>Primary E-mail</td>
+                </tr>
+            </thead>
+            <tbody>
+                {%for user_id, user in workspace.users(with_id=True) %}
+                <tr>
+                    <td>{{ user_id }}</td>
+                    <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
+                    <td>{{ user.name }}</td>
+                    <td>{{ user.primary_email }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div id="users-box" class="box"></div>
 </section>
 
 {% if not empty %}
@@ -193,10 +199,30 @@
     labels = time_stats['job'].map(({ ts }) => ts);
 
     stacked_chart('chart-price', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
-    stacked_chart('chart-clusters', 'Total Run time (hours)', 'line', false, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
+    stacked_chart('chart-clusters', 'Total Run time (hours)', 'line', true, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
     stacked_chart('chart-active-clusters', 'Active clusters', 'bar', true, labels, 'Interactive', interactive_active_clusters_cnt, 'Job', job_active_clusters_cnt);
     stacked_chart('chart-worker-hours', 'Worker hours', 'bar', true, labels, 'Interactive', interactive_worker_hours_sum, 'Job', job_worker_hours_sum);
     chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);
+
+
+    paginator({
+        table: document.getElementById("interactive-clusters-table").getElementsByTagName("table")[0],
+        box: document.getElementById("interactive-clusters-box"),
+        active_class: "color_page"
+    });
+
+    paginator({
+        table: document.getElementById("job-clusters-table").getElementsByTagName("table")[0],
+        box: document.getElementById("job-clusters-box"),
+        active_class: "color_page"
+    });
+
+    paginator({
+        table: document.getElementById("users-table").getElementsByTagName("table")[0],
+        box: document.getElementById("users-box"),
+        active_class: "color_page"
+    });
+
 
 </script>
 {% endif %}
