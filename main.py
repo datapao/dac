@@ -19,7 +19,6 @@ from aggregation import aggregate_by_types
 from db import engine_url, create_db, Base
 from db import Workspace, Cluster, JobRun, User, ScraperRun
 from scraping import scrape, start_scheduled_scraping
-from scraping import load_workspaces, export_workspaces
 
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
@@ -130,6 +129,8 @@ def view_workspace(workspace_id):
                  .one())
     states = workspace.state_df()
 
+    numbjobs_dict = get_running_jobs(workspace.jobruns)
+
     # PRICE CONFIG
     price_settings = {setting['type']: setting['value']
                       for setting in get_settings().get('prices')}
@@ -185,6 +186,7 @@ def view_workspace(workspace_id):
                            cost=cost_summary_dict,
                            time_stats=time_stats_dict,
                            top_users=top_users_dict,
+                           numjobs=numbjobs_dict,
                            empty=states.empty)
 
 
@@ -448,26 +450,19 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, help='command to run',
                         choices=["create_db", "scrape", "scrape_once"])
-    parser.add_argument('-c', '--config', type=str,
-                        help='path to config file to use',
-                        default="configs/config.json")
     args = parser.parse_args()
-
-    if not os.path.exists(args.config):
-        raise OSError(f"Couldn't find config file at {args.config}.")
-
     command = args.command
-    with open(args.config) as configfile:
-        config = json.load(configfile)
 
-    return command, config, configpath
+    configpath = os.getenv('DAC_CONFIG_PATH')
+
+    return command, configpath
 
 
 if __name__ == "__main__":
-    log.info(f"Command: {command}")
-    log.debug(f"Config loaded from: {args.configpath}")
+    command, configpath = parse_args()
 
-    command, config, configpath = parse_args()
+    log.info(f"Command: {command}")
+    log.debug(f"Config loaded from: {configpath}")
 
     if command == "scrape":
         interval = float(config["scraper"].get("interval"))
