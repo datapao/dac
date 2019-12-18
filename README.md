@@ -9,7 +9,7 @@ DAC has two configuration files:
 
 _.env_
 ```bash
-export FLASK_APP=main.py
+export FLASK_APP=dac.py
 export FLASK_ENV=production
 export DAC_CONFIG_PATH=configs/config.json
 ```
