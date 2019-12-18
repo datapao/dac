@@ -18,26 +18,29 @@
 
 
 <div class="columns">
-    <table class="table is-hoverable is-fullwidth">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Full name</th>
-                <th>Primary e-mail</th>
-                <th>DBUs used last 7 days</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in users %}
-            <tr>
-                <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
-                <td>{{ user.name }}</td>
-                <td>{{ user.primary_email }}</td>
-                <td>{{ user.dbu | round(2, 'common') }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div id="users-table">
+        <table class="table is-hoverable is-fullwidth">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Full name</th>
+                    <th>Primary e-mail</th>
+                    <th>DBUs used last 7 days</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
+                    <td>{{ user.name }}</td>
+                    <td>{{ user.primary_email }}</td>
+                    <td>{{ user.dbu | round(2, 'common') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="users-box" class="box"></div>
+    </div>
 </div>
 
 
@@ -51,6 +54,12 @@
 
     chart('chart-active-user-count', 'Active user count', 'count', 'bar', true, labels, user_count);
     chart('chart-clusters', false, 'Average DBU', 'line', false, labels, average_dbu);
+
+    paginator({
+        table: document.getElementById("users-table").getElementsByTagName("table")[0],
+        box: document.getElementById("users-box"),
+        active_class: "color_page"
+    });
 
 </script>
 

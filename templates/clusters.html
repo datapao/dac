@@ -17,44 +17,47 @@
     </div>
 </div>
 
-
-<table class="table is-hoverable is-fullwidth">
+<section>
     {% for cluster_type in ['interactive', 'job'] %}
     {% set clusters = clusters_by_type[cluster_type] %}
-    <thead>
-        <tr><th colspan=10>{{ cluster_type.capitalize() }}</th></tr>
-        <tr>
-            <td>Name</td>
-            <td>State</td>
-            <td>ID</td>
-            <td>Workspace</td>
-            <td>Driver type</td>
-            <td>Worker type</td>
-            <td>Workers</td>
-            <td>DBU / hour</td>
-            <td>Last 7 days DBU</td>
-            <td>Cost / hour</td>
-        </tr>
-    </thead>
-    <tbody>
-        {% for cluster in clusters %}
-        <tr>
-            <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
-            <td>{{ cluster.state }}</td>
-            <td>{{ cluster.cluster_id }}</td>
-            <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
-            <td>{{ cluster.driver_type }}</td>
-            <td>{{ cluster.worker_type }}</td>
-            <td>{{ cluster.num_workers }}</td>
-            <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
-            <td>{{ cluster_dbus.get(cluster.cluster_id, 0.0) | round(2, 'common') }}</td>
-            <td>${{ (cluster.dbu_per_hour() * price_settings[cluster_type]) | round(2, 'common') }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
+    <div id="{{ cluster_type }}-clusters-table">
+        <table class="table is-hoverable is-fullwidth">
+            <thead>
+                <tr><th colspan=10>{{ cluster_type.capitalize() }}</th></tr>
+                <tr>
+                    <td>Name</td>
+                    <td>State</td>
+                    <td>ID</td>
+                    <td>Workspace</td>
+                    <td>Driver type</td>
+                    <td>Worker type</td>
+                    <td>Workers</td>
+                    <td>DBU / hour</td>
+                    <td>Last 7 days DBU</td>
+                    <td>Cost / hour</td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cluster in clusters %}
+                <tr>
+                    <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a></td>
+                    <td>{{ cluster.state }}</td>
+                    <td>{{ cluster.cluster_id }}</td>
+                    <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
+                    <td>{{ cluster.driver_type }}</td>
+                    <td>{{ cluster.worker_type }}</td>
+                    <td>{{ cluster.num_workers }}</td>
+                    <td>{{ cluster.dbu_per_hour() | round(2, 'common') }}</td>
+                    <td>{{ cluster_dbus.get(cluster.cluster_id, 0.0) | round(2, 'common') }}</td>
+                    <td>${{ (cluster.dbu_per_hour() * price_settings[cluster_type]) | round(2, 'common') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="{{ cluster_type }}-clusters-box" class="box"></div>
+    </div>
     {% endfor %}
-</table>
-
+</section>
 
 <script>
 
@@ -75,6 +78,19 @@
     stacked_chart('chart-dbus', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
     stacked_chart('chart-runtime', 'Total Run time (hours)', 'line', true, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
     chart('chart-distribution', 'Interactive / Job clusters', 'count' ,'bar', false, ['Interactive', 'Job'], cluster_distribution);
+
+
+    paginator({
+        table: document.getElementById("interactive-clusters-table").getElementsByTagName("table")[0],
+        box: document.getElementById("interactive-clusters-box"),
+        active_class: "color_page"
+    });
+
+    paginator({
+        table: document.getElementById("job-clusters-table").getElementsByTagName("table")[0],
+        box: document.getElementById("job-clusters-box"),
+        active_class: "color_page"
+    });
 
 </script>
 
