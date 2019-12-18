@@ -1,4 +1,2 @@
-#!/bin/bash
-command="docker image build --no-cache --build-arg config_path="$(grep DAC_CONFIG_PATH .env | cut -d= -f2)" -t dac:0.0.1 ."
-echo $command
-eval $command
+#!/bin/bash -ex
+docker image build --no-cache --build-arg config_path="$(grep DAC_CONFIG_PATH .env | cut -d= -f2)" -t dac:0.0.1 .
