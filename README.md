@@ -1,7 +1,7 @@
 # Databricks Admin Center (DAC)
 Databricks Admin Center (DAC) solves the problem of cost- and performance monitoring, maintenance and overview of Databricks workspaces, clusters and users in one place.
 
-[img/screencast.gif]
+![](img/screencast.gif)
 
 
 ### Configuration
@@ -19,10 +19,10 @@ _configs/config.json_
     "workspaces": [
         {
             "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
-            "id": "workspace_id",
+            "id": "[workspace_id]",
             "type": "[AZURE|AWS]",
-            "name": "workspace_name",
-            "token": "token"
+            "name": "[workspace_name]",
+            "token": "[token]"
           }, ...
     ],
     "prices": [
@@ -99,13 +99,13 @@ export FLASK_ENV=development
 
 ### Design doc and contributing
 
-Main features, major architecture or code changes must be designed and planned in a design document. These documents are available on the DAC wiki. You are required to provide a design document if the feature you would like to contribute is requires one. A minimal design doc template can be used [from the wiki](https://github.com/datapao/dac/wiki/Design-doc-template).
+Main features, major architecture or code changes must be designed and planned in a design document. These documents are available on the DAC wiki. You are required to provide a design document if the feature you would like to contribute requires one. A minimal design doc template can be used [from the wiki](https://github.com/datapao/dac/wiki/Design-doc-template).
 
 ## Support
 
 The main channel for DAC is the official DAC Slack, where you can ask any question. Feel free to join us!
 
-Slack: project-dac.slack.com
+Slack: [project-dac.slack.com](https://project-dac.slack.com)
 
 ## Roadmap
 
