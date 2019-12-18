@@ -1,7 +1,7 @@
 # Databricks Admin Center (DAC)
 Databricks Admin Center (DAC) solves the problem of cost- and performance monitoring, maintenance and overview of Databricks workspaces, clusters and users in one place.
 
-[img/screencast.gif]
+![](img/screencast.gif)
 
 
 ### Configuration
@@ -9,9 +9,9 @@ DAC has two configuration files:
 
 _.env_
 ```bash
-export FLASK_APP=main.py
+export FLASK_APP=dac.py
 export FLASK_ENV=production
-export FLASK_CONFIG_PATH=configs/config.json
+export DAC_CONFIG_PATH=configs/config.json
 ```
 _configs/config.json_
 ```json
@@ -19,10 +19,10 @@ _configs/config.json_
     "workspaces": [
         {
             "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
-            "id": "workspace_id",
-            "type": "AZURE|AWS",
-            "name": "workspace_name",
-            "token": "token"
+            "id": "[workspace_id]",
+            "type": "[AZURE|AWS]",
+            "name": "[workspace_name]",
+            "token": "[token]"
           }, ...
     ],
     "prices": [
@@ -49,10 +49,10 @@ _configs/config.json_
 pip install -r requirements.txt
 ```
 
-We recommend using virtualenv to run DAC. DAC requires Python 3.6+. 
+We recommend using virtualenv to run DAC. DAC requires Python 3.6+.
 
 ## Running
-DAC can be run in a docker container or without it. 
+DAC can be run in a docker container or without it.
 ### Non-containerized running
 1. To run the UI
 
@@ -72,9 +72,15 @@ python main.py scrape
 
 ### Dockerized running
 
+#### 1. Create the config files
+
+#### 2. Build image
 ```bash
-docker image build -t dac:0.0.1 .
-docker container run --publish 5000:5000 --detach --name dac dac:0.0.1
+./scripts/create-docker
+```
+#### 3. Run image
+```bash
+./scripts/run-local
 ```
 
 ## Development
@@ -93,13 +99,13 @@ export FLASK_ENV=development
 
 ### Design doc and contributing
 
-Main features, major architecture or code changes must be designed and planned in a design document. These documents are available on the DAC wiki. You are required to provide a design document if the feature you would like to contribute is requires one. A minimal design doc template can be used [from the wiki](https://github.com/datapao/dac/wiki/Design-doc-template). 
+Main features, major architecture or code changes must be designed and planned in a design document. These documents are available on the DAC wiki. You are required to provide a design document if the feature you would like to contribute requires one. A minimal design doc template can be used [from the wiki](https://github.com/datapao/dac/wiki/Design-doc-template).
 
 ## Support
 
 The main channel for DAC is the official DAC Slack, where you can ask any question. Feel free to join us!
 
-Slack: project-dac.slack.com
+Slack: [project-dac.slack.com](https://project-dac.slack.com)
 
 ## Roadmap
 
@@ -109,4 +115,4 @@ The roadmap is subject to change. If you feel excited about certain features ple
 
 ## Sponsoring
 
-DAC is currently developped with ❤️ at Datapao. If you need a feature or you think DAC is useful, please consider sponsoring the development. 
+DAC is currently developped with ❤️ at Datapao. If you need a feature or you think DAC is useful, please consider sponsoring the development.

@@ -6,3 +6,4 @@ pycodestyle==2.5.0
 python-dotenv==0.10.3
 pandas==0.25.2
 requests>=2.22.0
+lxml>=4.4.1

@@ -138,7 +138,7 @@ def aggregate_for_entity(states: pd.DataFrame):
     weekly_cost_stats.index = [f"weekly_{p}" for p in weekly_cost_stats.index]
 
     cost_summary = states[["interval_dbu", "interval"]].sum()
-    cost_summary = pd.concat([cost_summary, weekly_cost_stats])
+    cost_summary = pd.concat([cost_summary, weekly_cost_stats], sort=False)
 
     return cost_summary, time_stats
 

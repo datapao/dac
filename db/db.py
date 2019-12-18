@@ -28,7 +28,7 @@ class User(Base):
 
     def state_df(self):
         df = (pd.concat([workspace.workspace.state_df()
-                         for workspace in self.user_workspaces])
+                         for workspace in self.user_workspaces], sort=False)
               .sort_values('timestamp'))
         return df.loc[df.user_id == self.username] if not df.empty else df
 
@@ -141,7 +141,8 @@ class Workspace(Base):
             columns = ClusterStates.__attributes__ + ['interval_dbu']
             return pd.DataFrame(columns=columns)
 
-        df = (pd.concat(cluster.state_df() for cluster in clusters)
+        df = (pd.concat([cluster.state_df() for cluster in clusters],
+                        sort=False)
               .sort_values('timestamp')
               .reset_index(drop=True))
 

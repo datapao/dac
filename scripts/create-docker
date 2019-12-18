@@ -1,5 +1,2 @@
-docker build -t dac:latest .
-docker tag dac:latest 629551213555.dkr.ecr.eu-central-1.amazonaws.com/dac
-
-$(aws ecr get-login --region eu-central-1 --no-include-email)
-docker push 629551213555.dkr.ecr.eu-central-1.amazonaws.com/dac
+#!/bin/bash -ex
+docker image build --no-cache --build-arg config_path="$(grep DAC_CONFIG_PATH .env | cut -d= -f2)" -t dac:0.0.1 .

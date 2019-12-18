@@ -146,7 +146,7 @@ class EventParser:
             cluster_name = clusters.get(cluster_id, 'UNKNOWN')
             dfs.append(self.process_timeline(timeline, cluster_name))
 
-        return pd.concat(dfs)
+        return pd.concat(dfs, sort=False)
 
     def process_timeline(self,
                          timeline: list,
@@ -288,7 +288,7 @@ def query_instance_types() -> pd.DataFrame:
     azure_url = "https://azure.microsoft.com/en-us/pricing/details/databricks/"
     azure_dfs = [df for df in pd.read_html(azure_url)
                  if 'Dbu Count' in df.columns]
-    azure = (pd.concat(azure_dfs)
+    azure = (pd.concat(azure_dfs, sort=False)
              [column_mapping.keys()]
              .rename(columns=column_mapping)
              .drop_duplicates()
