@@ -2,246 +2,230 @@
 {% block content %}
 
 <h1 class="title">Workspace: {{ workspace.name }}</h1>
-<h1 class="subtitle">{{ workspace.id }}</h1>
+<h1 class="subtitle"><a href="https://{{ workspace.url }}">{{ workspace.id }}</a></h1>
 
 
 <section class="section">
-    <h3 class="title is-3">Deatils and Costs</h3>
+
+    <h3 class="title is-3">Details and Costs</h3>
     <div class="columns">
-        <div class="column is-half">
+
+        <!-- BASE STATS -->
+        <div class="column is-3">
             <table class="table">
                 <tr>
                     <th>Type</th>
-                    <td>{{workspace.type}}</td>
+                    <td>{{ workspace.type }}</td>
                 </tr>
                 <tr>
                     <th>Clusters</th>
-                    <td>{{workspace.clusters | length}}</td>
+                    <td>{{ workspace.clusters | length }}</td>
                 </tr>
                 <tr>
                     <th>Active Clusters</th>
-                    <td>{{workspace.active_clusters() | length}}</td>
+                    <td>{{ workspace.active_clusters() | length }}</td>
                 </tr>
             </table>
         </div>
 
 
-
-        <div class="column is-half">
-            <div class="columns">
-
-                <div class="column">
-                    <table class="table">
-                        <tr>
-                            <th>Daily price</th>
-                            <td>$75.01</td>
-                        </tr>
-                        <tr>
-                            <th>Daily DBU cost</th>
-                            <td>$21.12</td>
-                        </tr>
-                        <tr>
-                            <th>Daily VM</th>
-                            <td>$96.12</td>
-                        </tr>
-                    </table>
-
-                </div>
-
-                <div class="column is-3">
-                    <br>
-
-                    <div class="dropdown">
-
-                        <div class="dropdown-trigger">
-                            <button class="button" aria-haspopup="true" aria-controls="dropdown-menu">
-                                <span>Daily</span>
-                                <span class="icon is-small">
-                                    <i class="fas fa-angle-down" aria-hidden="true"></i>
-                                </span>
-                            </button>
-                        </div>
-                        <div class="dropdown-menu" id="dropdown-menu" role="menu">
-                            <div class="dropdown-content">
-                                <a href="#" class="dropdown-item">
-                                    Monthly
-                                </a>
-                                <a class="dropdown-item is-active">
-                                    Daily
-                                </a>
-                                <a href="#" class="dropdown-item">
-                                    Hourly
-                                </a>
-
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <!-- COST STATS -->
+        <div class="column is-3">
+            <table class="table">
+                <tr>
+                    <th>Running time (total)</th>
+                    <td>{{ cost.interval | round(1, 'common')}} h</td>
+                </tr>
+                <tr>
+                    <th>Total DBU (total)</th>
+                    <td>{{ cost.interval_dbu | round(2, 'common')}}</td>
+                </tr>
+                <tr>
+                    <th>Total Cost</th>
+                    <td>${{ cost.cost | round(2, 'common')}}</td>
+                </tr>
+                <tr>
+                    <th>Running time (7 days)</th>
+                    <td>{{ cost.weekly_interval_sum | round(1, 'common')}} h</td>
+                </tr>
+                <tr>
+                    <th>Total DBU (7 days)</th>
+                    <td>{{ cost.weekly_interval_dbu_sum | round(2, 'common')}}</td>
+                </tr>
+                <tr>
+                    <th>Total Cost (7 days)</th>
+                    <td>${{ cost.weekly_cost | round(2, 'common')}}</td>
+                </tr>
+            </table>
+        </div>
 
 
-
-            </div>
-
-
+        <!-- TOP USERS -->
+        <div class="column is-3">
+            <table class="table">
+                <thead>
+                    <th colspan=2>Top 3 users (7 days)</th>
+                </thead>
+                <tbody>
+                    {% for user in top_users %}
+                    <tr>
+                        <th><a href={{ url_for("view_user", username=user.user_id) }}>{{ user.user_id }}</a></th>
+                        <td>{{ user.dbu | round(2, 'common')}} DBU</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
     </div>
 
 </section>
 
+{% if not empty %}
 <h3 class="title is-3">Trends</h3>
-<section class="section">
-    <div class="columns">
-        <div class="column is-half">
-            <canvas id="chart-price"></canvas>
-        </div>
-        <div class="column is-half">
-            <canvas id="chart-clusters"></canvas>
-        </div>
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-price"></canvas>
     </div>
-</section>
+    <div class="column is-half">
+        <canvas id="chart-clusters"></canvas>
+    </div>
+</div>
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-active-clusters"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-worker-hours"></canvas>
+    </div>
+</div>
+
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-running-jobs"></canvas>
+    </div>
+</div>
 
 
 <h3 class="title is-3">Clusters</h3>
 <section class="section">
-    <table class="table is-hoverable is-fullwidth">
-        <thead>
-            <tr>
-                <td>Name</td>
-                <td>State</td>
-                <td>ID</td>
-                <td>Workspace</td>
-                <td>Driver type</td>
-                <td>Worker type</td>
-                <td>Workers</td>
-                <td>DBU cost / hour</td>
-                <td>HW cost / hour</td>
-                <td>Cost / hour</td>
-            </tr>
-        <tbody>
-            {%for cluster in workspace.clusters%}
-            <tr>
-                <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id)}}>{{cluster.cluster_name}}</a></td>
-                <td>{{cluster.state}}</td>
-                <td>{{cluster.cluster_id}}</td>
-                <td><a href="/workspaces">{{cluster.workspace.id}}</a></td>
-                <td>{{cluster.driver_type}}</td>
-                <td>{{cluster.worker_type}}</td>
-                <td>{{cluster.num_workers}}</td>
-                <td>{{cluster.dbu_cost_per_hour}}</td>
-                <td>{{cluster.hw_cost_per_hour}}</td>
-                <td>{{cluster.cost_per_hour}}</td>
-            </tr>
-            {% endfor %}
+    {% for cluster_type in ['interactive', 'job'] %}
+    <div id="{{ cluster_type }}-clusters-table">
+        <table class="table is-hoverable is-fullwidth">
+            {% set clusters = clusters_by_type[cluster_type] %}
+            <thead>
+                <tr><th colspan=10>{{ cluster_type.capitalize() }}</th></tr>
+                <tr>
+                    <td>Name</td>
+                    <td>State</td>
+                    <td>ID</td>
+                    <td>Workspace</td>
+                    <td>Driver type</td>
+                    <td>Worker type</td>
+                    <td>Workers</td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cluster in clusters %}
+                <tr>
+                    <td><a href={{ url_for("view_cluster", cluster_id=cluster.cluster_id) }}>{{ cluster.cluster_name }}</a>
+                    </td>
+                    <td>{{ cluster.state }}</td>
+                    <td>{{ cluster.cluster_id }}</td>
+                    <td><a href={{ url_for("view_workspace", workspace_id=cluster.workspace.id) }}>{{ cluster.workspace.id }}</a></td>
+                    <td>{{ cluster.driver_type }}</td>
+                    <td>{{ cluster.worker_type }}</td>
+                    <td>{{ cluster.num_workers }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div id="{{ cluster_type }}-clusters-box" class="box"></div>
+    {% endfor %}
+</section>
+{% endif %}
 
-        </tbody>
-
-
-        </tr>
-        </thead>
-    </table>
+<h3 class="title is-3">Users</h3>
+<section class="section">
+    <div id="users-table">
+        <table class="table is-hoverable is-fullwidth">
+            <thead>
+                <tr>
+                    <td>ID</td>
+                    <td>Userame</td>
+                    <td>Full name</td>
+                    <td>Primary E-mail</td>
+                </tr>
+            </thead>
+            <tbody>
+                {%for user_id, user in workspace.users(with_id=True) %}
+                <tr>
+                    <td>{{ user_id }}</td>
+                    <td><a href={{ url_for("view_user", username=user.username) }}>{{ user.username }}</a></td>
+                    <td>{{ user.name }}</td>
+                    <td>{{ user.primary_email }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div id="users-box" class="box"></div>
 </section>
 
-
+{% if not empty %}
 <script>
-    var ctx = document.getElementById('chart-price').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-            datasets: [{
-                label: 'Daily price',
-                data: [114.65, 400.31, 248.11, 327.67, 401.98, 457.65],
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
+
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+    var numjobs = JSON.parse('{{ numjobs | tojson | safe }}');
+
+    interactive_time_stats = time_stats['interactive'];
+    interactive_interval_dbu_sum = interactive_time_stats.map(({ interval_dbu_sum }) => interval_dbu_sum);
+    interactive_interval_sum = interactive_time_stats.map(({ interval_sum }) => interval_sum);
+    interactive_worker_hours_sum = interactive_time_stats.map(({ worker_hours_sum }) => worker_hours_sum);
+    interactive_active_clusters_cnt = interactive_time_stats.map(({ cluster_id_nunique }) => cluster_id_nunique);
+
+    job_time_stats = time_stats['job'];
+    job_interval_dbu_sum = job_time_stats.map(({ interval_dbu_sum }) => interval_dbu_sum);
+    job_interval_sum = job_time_stats.map(({ interval_sum }) => interval_sum);
+    job_worker_hours_sum = job_time_stats.map(({ worker_hours_sum }) => worker_hours_sum);
+    job_active_clusters_cnt = job_time_stats.map(({ cluster_id_nunique }) => cluster_id_nunique);
+
+    jobs_count = numjobs.map(({job_id}) => job_id);
+
+    labels = time_stats['job'].map(({ ts }) => ts);
+
+    stacked_chart('chart-price', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
+    stacked_chart('chart-clusters', 'Total Run time (hours)', 'line', true, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
+    stacked_chart('chart-active-clusters', 'Active clusters', 'bar', true, labels, 'Interactive', interactive_active_clusters_cnt, 'Job', job_active_clusters_cnt);
+    stacked_chart('chart-worker-hours', 'Worker hours', 'bar', true, labels, 'Interactive', interactive_worker_hours_sum, 'Job', job_worker_hours_sum);
+    chart('chart-running-jobs', 'Running jobs', 'Jobs', 'bar', true, labels, jobs_count);
+
+
+    paginator({
+        table: document.getElementById("interactive-clusters-table").getElementsByTagName("table")[0],
+        box: document.getElementById("interactive-clusters-box"),
+        active_class: "color_page"
     });
 
-    var ctx = document.getElementById('chart-clusters').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-            datasets: [{
-                label: 'Clusters',
-                data: [3, 22, 13, 15, 16, 19],
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
+    paginator({
+        table: document.getElementById("job-clusters-table").getElementsByTagName("table")[0],
+        box: document.getElementById("job-clusters-box"),
+        active_class: "color_page"
     });
-    var ctx = document.getElementById('chart-users').getContext('2d');
-    var myChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
-            datasets: [{
-                label: 'Users',
-                data: [25, 31, 31, 34, 70, 76],
-                backgroundColor: '#7B8CDE',
-                borderColor: '#7B8CDE',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                yAxes: [{
-                    ticks: {
-                        beginAtZero: true
-                    }
-                }]
-            }
-        }
+
+    paginator({
+        table: document.getElementById("users-table").getElementsByTagName("table")[0],
+        box: document.getElementById("users-box"),
+        active_class: "color_page"
     });
-</script>
 
-
-<script>
-    function getAll(selector) {
-        return Array.prototype.slice.call(document.querySelectorAll(selector), 0);
-    }
-
-    var $dropdowns = getAll('.dropdown:not(.is-hoverable)');
-
-    if ($dropdowns.length > 0) {
-        $dropdowns.forEach(function ($el) {
-            $el.addEventListener('click', function (event) {
-                event.stopPropagation();
-                $el.classList.toggle('is-active');
-            });
-        });
-
-        document.addEventListener('click', function (event) {
-            closeDropdowns();
-        });
-    }
-
-    function closeDropdowns() {
-        $dropdowns.forEach(function ($el) {
-            $el.classList.remove('is-active');
-        });
-    }
 
 </script>
+{% endif %}
+
+
 {% endblock %}

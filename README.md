@@ -1,47 +1,112 @@
 # Databricks Admin Center (DAC)
+Databricks Admin Center (DAC) solves the problem of cost- and performance monitoring, maintenance and overview of Databricks workspaces, clusters and users in one place.
 
-Databricks Admin Center (DAC) solves the problem of overview of Databricks workspaces, clusters and Users.
+[img/screencast.gif]
 
-# Running
-0) Copy the githooks from `.githooks` to `.git/hooks`
 
-1) Create and activate virtualenv environment
+### Configuration
+DAC has two configuration files:
+
+_.env_
+```bash
+export FLASK_APP=main.py
+export FLASK_ENV=production
+export FLASK_CONFIG_PATH=configs/config.json
 ```
-virtualenv --no-site-packages --python=python3.6 .venv
-source .venv/bin/activate
+_configs/config.json_
+```json
+{
+    "workspaces": [
+        {
+            "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
+            "id": "workspace_id",
+            "type": "AZURE|AWS",
+            "name": "workspace_name",
+            "token": "token"
+          }, ...
+    ],
+    "prices": [
+        {
+          "type": "interactive",
+          "value": 1.0
+          },
+        {
+          "type": "job",
+          "value": 1.0
+        }
+    ],
+    "thresholds": [
+    ],
+    "scraper": {
+        "interval": 270
+    }
+}
 ```
 
-2) Install requirements
-```
+## Install
+
+```bash
 pip install -r requirements.txt
 ```
 
-3) Source the `.env` file to load the environmental variables. 
+We recommend using virtualenv to run DAC. DAC requires Python 3.6+. 
+
+## Running
+DAC can be run in a docker container or without it. 
+### Non-containerized running
+1. To run the UI
+
+```bash
+flask run
 ```
-source .env
+
+2. To run the scraper:
+
+```bash
+# Only for the first run:
+python main.py create_db
+
+# To run the scraper
+python main.py scrape
 ```
-If you don't have the .env, create it::
+
+### Dockerized running
+
+```bash
+docker image build -t dac:0.0.1 .
+docker container run --publish 5000:5000 --detach --name dac dac:0.0.1
 ```
-export DATABRICKS_TOKEN_MAIN_AWS=**********
-export DATABRICKS_TOKEN_MAIN_AZURE==**********
-export DATABRICKS_TOKEN_MAIN_LIDL==**********
-export FLASK_APP=main.py
+
+## Development
+
+If you want to run Flask in development mode, change the following line in .env:
+
+```bash
+export FLASK_ENV=production
+```
+
+to
+
+```bash
 export FLASK_ENV=development
 ```
 
-4) Create the db and start the scraper:
-```
-rm -f dac.db && python main.py create_db && python main.py scrape
-```
+### Design doc and contributing
 
-5) Start the server:
-```
-python main.py ui
-```
+Main features, major architecture or code changes must be designed and planned in a design document. These documents are available on the DAC wiki. You are required to provide a design document if the feature you would like to contribute is requires one. A minimal design doc template can be used [from the wiki](https://github.com/datapao/dac/wiki/Design-doc-template). 
 
-# Technology
-- Python 3+
-- Flask
-- SQLAlchemy
-- Chart.js
-- databricks-api
+## Support
+
+The main channel for DAC is the official DAC Slack, where you can ask any question. Feel free to join us!
+
+Slack: project-dac.slack.com
+
+## Roadmap
+
+DAC Roadmap is available in the wiki: [Roadmap](https://github.com/datapao/dac/wiki/Roadmap)
+
+The roadmap is subject to change. If you feel excited about certain features please let us know. Even better, if you consider contributing features feel free to contact the development team for any support you need.
+
+## Sponsoring
+
+DAC is currently developped with ❤️ at Datapao. If you need a feature or you think DAC is useful, please consider sponsoring the development. 

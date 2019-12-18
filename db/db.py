@@ -1,12 +1,59 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, ForeignKey, Integer, String, BigInteger, DateTime, Boolean, JSON
-from sqlalchemy import create_engine
-from sqlalchemy.orm import relationship
-from datetime import datetime
 from uuid import uuid4
+from datetime import datetime
+from collections import defaultdict
+
+import pandas as pd
+
+from sqlalchemy import create_engine
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy import String, Integer, BigInteger, Float
+from sqlalchemy import DateTime, Boolean, JSON
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+
+from aggregation import since
+
 
 engine_url = 'sqlite:///dac.db'
 Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = 'users'
+    username = Column(String, primary_key=True)
+    name = Column(String)
+    is_active = Column(Boolean)
+    primary_email = Column(String)
+    user_workspaces = relationship("UserWorkspace", back_populates='user')
+
+    def state_df(self):
+        df = (pd.concat([workspace.workspace.state_df()
+                         for workspace in self.user_workspaces])
+              .sort_values('timestamp'))
+        return df.loc[df.user_id == self.username] if not df.empty else df
+
+    def active(self, since_days=7):
+        states = self.state_df()
+        states = states.loc[states.timestamp >= since(since_days)]
+        return not states.empty
+
+    def dbu(self, since_days=7):
+        states = self.state_df()
+        return (states
+                .loc[states.timestamp >= since(since_days)]
+                .interval_dbu
+                .sum())
+
+
+class UserWorkspace(Base):
+    __tablename__ = 'user_workspaces'
+    user_id = Column(String, nullable=False)
+    username = Column(String, ForeignKey("users.username"),
+                      primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"),
+                          primary_key=True)
+    user = relationship('User', back_populates='user_workspaces')
+    workspace = relationship('Workspace', back_populates='user_workspaces')
 
 
 class Cluster(Base):
@@ -16,24 +63,24 @@ class Cluster(Base):
     state = Column(String, nullable=False)
     state_message = Column(String, nullable=False)
     # TODO(gulyasm): This must be a foreign key and a seperate table
-    driver_type = Column(String, nullable=False)
-    worker_type = Column(String, nullable=False)
-    num_workers = Column(Integer, nullable=False)
+    driver_type = Column(String)
+    worker_type = Column(String)
+    num_workers = Column(Integer)
     spark_version = Column(String, nullable=False)
-    creator_user_name = Column(String, nullable=False)
+    creator_user_name = Column(String, ForeignKey("users.username"),
+                               nullable=False)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
     workspace = relationship("Workspace")
     autotermination_minutes = Column(Integer)
     cluster_source = Column(String)
-    creator_user_name = Column(String)
     enable_elastic_disk = Column(Boolean)
     last_activity_time = Column(DateTime)
     last_state_loss_time = Column(DateTime)
-    pinned_by_user_name = Column(String)
-    spark_context_id = Column(BigInteger, nullable=False)
+    pinned_by_user_name = Column(String, ForeignKey("users.username"))
+    spark_context_id = Column(BigInteger)
     spark_version = Column(String)
     start_time = Column(DateTime, nullable=False)
-    terminated_time = Column(DateTime, nullable=False)
+    terminated_time = Column(DateTime)
     termination_reason_code = Column(String)
     termination_reason_inactivity_min = Column(String)
     termination_reason_username = Column(String)
@@ -42,9 +89,32 @@ class Cluster(Base):
     spark_conf = Column(JSON)
     spark_env_vars = Column(JSON)
     events = relationship("Event")
+    cluster_states = relationship("ClusterStates")
 
     def eventFilterNot(self, types):
-        return [e for e in self.events if e.type not in types]
+        sorted_events = sorted(self.events, key=lambda x: x.timestamp)
+        return [e for e in sorted_events if e.type not in types]
+
+    def state_df(self):
+        df = (pd.DataFrame([state.to_dict() for state in self.cluster_states])
+              .sort_values('timestamp'))
+        df['cluster_type'] = self.cluster_type()
+        df["interval_dbu"] = df["dbu"] * df["interval"]
+
+        return df
+
+    def users(self, active_only=False):
+        return self.workspaces.users(active_only)
+
+    def dbu_per_hour(self):
+        df = self.state_df()
+        return df.loc[df.state.isin(['RUNNING']), 'dbu'].iloc[-1]
+
+    def cluster_type(self):
+        return 'job' if self.cluster_name.startswith('job') else 'interactive'
+
+    def cost_per_hour(self, price_config):
+        return self.dbu_per_hour() * price_config[self.cluster_type()]
 
 
 class Workspace(Base):
@@ -56,36 +126,143 @@ class Workspace(Base):
     type = Column(String, nullable=False)
     token = Column(String, nullable=False)
     clusters = relationship(Cluster)
+    user_workspaces = relationship('UserWorkspace', back_populates='workspace')
+    jobruns = relationship('JobRun')
+    __attributes__ = ['id', 'name', 'url', 'type', 'token']
 
     def active_clusters(self):
-        return [c for c in self.clusters if c.state in ["RUNNING", "PENDING"]]
+        return [cluster for cluster in self.clusters
+                if cluster.state in ["RUNNING", "PENDING"]]
+
+    def state_df(self, active_only=False):
+        clusters = self.clusters if not active_only else self.active_clusters()
+
+        if not clusters:
+            columns = ClusterStates.__attributes__ + ['interval_dbu']
+            return pd.DataFrame(columns=columns)
+
+        df = (pd.concat(cluster.state_df() for cluster in clusters)
+              .sort_values('timestamp')
+              .reset_index(drop=True))
+
+        return df
+
+    def users(self, with_id=False, active_only=False):
+        users = [uw.user for uw in self.user_workspaces]
+
+        if active_only:
+            users = [user for user in users if user.active()]
+
+        if with_id:
+            usernames = [user.username for user in users]
+            users = [(uw.user_id, uw.user) for uw in self.user_workspaces
+                     if uw.user.username in usernames]
+
+        return users
+
+    def dbu(self, since_days=7):
+        states = self.state_df()
+        return (states
+                .loc[states.timestamp >= since(since_days)]
+                .interval_dbu
+                .sum())
+
+    def dbu_per_hour(self):
+        return sum([cluster.dbu_per_hour() for cluster in self.clusters])
+
+    def cost_per_hour(self, price_config):
+        return sum([cluster.cost_per_hour(price_config)
+                    for cluster in self.clusters])
+
+    def to_dict(self):
+        return {attr: getattr(self, attr) for attr in self.__attributes__}
 
 
 class Event(Base):
     __tablename__ = "events"
-    cluster_id = Column(String, ForeignKey(
-        "clusters.cluster_id"), primary_key=True)
-    timestamp = Column(DateTime, primary_key=True)
+    event_id = Column(Integer, primary_key=True)
+    cluster_id = Column(String, ForeignKey("clusters.cluster_id"),
+                        nullable=False)
+    timestamp = Column(DateTime, nullable=False)
     details = Column(JSON, nullable=False)
     type = Column(String, nullable=False)
     cluster = relationship(Cluster)
 
     def human_details(self):
         patterns = {
-            "TERMINATING": lambda x: "Cluster is terminated due to {}".format(x["reason"]["code"].capitalize()),
-            "DRIVER_HEALTHY": lambda _: "Driver is healthy",
-            "RUNNING": lambda x: "Cluster is running with {current_num_workers} workers (target: {target_num_workers})".format(**x),
+            "CREATING": lambda x: "Cluster is created by: {user}".format(**x),
+            "EXPANDED_DISK": lambda x: ("Disk size is changed "
+                                        "from {previous_disk_size:,} "
+                                        "to {disk_size:,}"
+                                        .format(**x)),
             "STARTING": lambda x: "Cluster is started by {user}".format(**x),
-            "CREATING": lambda x: "Cluster is created by: {user}".format(**x)
+            "RESTARTING": lambda x: ("Cluster is restarted by {user}"
+                                     .format(**x)),
+            "TERMINATING": lambda x: ("Cluster is terminated due to {}"
+                                      .format(x["reason"]["code"]
+                                              .capitalize())),
+            "EDITED": lambda x: ("Cluster is edited by {user}:\n{changes}"
+                                 .format(user=x['user'],
+                                         changes=self.parse_config_edits(x))),
+            "RUNNING": lambda x: ("Cluster is running with "
+                                  "{current_num_workers} workers "
+                                  "(target: {target_num_workers})"
+                                  .format(**x)),
+            "RESIZING": lambda x: ("Cluster resize from {current_num_workers} "
+                                   "to {target_num_workers}.".format(**x)
+                                   + ("Resize is initiated by {user}."
+                                      .format(user=x.get('user'))
+                                      if 'user' in x.keys() else "")),
+            "UPSIZE_COMPLETED": lambda x: ("Cluster is now running with "
+                                           "{current_num_workers} workers "
+                                           "(target: {target_num_workers})"
+                                           .format(**x)),
+            "DRIVER_HEALTHY": lambda _: "Driver is healthy",
+            "DRIVER_UNAVAILABLE": lambda _: "Driver is not available.",
         }
+        if self.type not in patterns:
+            return self.details
         return patterns[self.type](self.details)
+
+    def difference(self, first, second, parent_key=None):
+        diff = []
+        if isinstance(first, dict):
+            for key in first:
+                if key not in second:
+                    diff.append(f"{key} removed.")
+                else:
+                    changes = self.difference(first[key], second[key],
+                                              parent_key)
+                    if len(changes):
+                        diff.append(f'{key} {", ".join(changes)}')
+
+        elif isinstance(first, list):
+            diff = [self.difference(first_item, second_item, parent_key)
+                    for first_item, second_item in zip(first, second)]
+        else:
+            if first != second:
+                diff.append(f'{parent_key if parent_key else ""} '
+                            f'changed from {first} to {second}')
+        return diff
+
+    def parse_config_edits(self, config):
+        prev = config.get('previous_attributes')
+        act = config.get('attributes')
+
+        if prev is None or act is None:
+            return 'No changes made.'
+
+        diff = self.difference(prev, act)
+
+        return '\n- '.join(diff)
 
 
 class Job(Base):
     __tablename__ = "jobs"
     job_id = Column(BigInteger, primary_key=True)
     created_time = Column(DateTime, primary_key=True)
-    creator_user_name = Column(String, nullable=False)
+    creator_user_name = Column(String, ForeignKey("users.username"),
+                               nullable=False)
     name = Column(String, nullable=False)
     timeout_seconds = Column(Integer, nullable=False)
     email_notifications = Column(JSON, nullable=False)
@@ -102,16 +279,16 @@ class Job(Base):
 
 class JobRun(Base):
     __tablename__ = "jobruns"
-    job_id = Column(BigInteger)
+    job_id = Column(BigInteger, primary_key=True)
     run_id = Column(BigInteger, primary_key=True)
     number_in_job = Column(Integer)
     original_attempt_run_id = Column(Integer)
-    workspace_id = Column(String, ForeignKey(
-        "workspaces.id"), primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"),
+                          primary_key=True)
     workspace = relationship(Workspace)
     cluster_spec = Column(JSON, nullable=False)
     cluster_instance_id = Column(String, nullable=False)
-    spark_context_id = Column(BigInteger, nullable=False)
+    spark_context_id = Column(BigInteger)
     state_life_cycle_state = Column(String)
     state_result_state = Column(String)
     state_state_message = Column(String)
@@ -143,6 +320,7 @@ class ScraperRun(Base):
     num_events = Column(Integer, nullable=False)
     num_jobs = Column(Integer, nullable=False)
     num_job_runs = Column(Integer, nullable=False)
+    num_users = Column(Integer, nullable=False)
 
     def start(self):
         self.start_time = datetime.now()
@@ -176,14 +354,18 @@ class ScraperRun(Base):
         elif right.start_time is None:
             start_time = left.start_time
         else:
-            start_time = left.start_time if left.start_time < right.start_time else right.start_time
+            start_time = (left.start_time
+                          if left.start_time < right.start_time
+                          else right.start_time)
         end_time = None
         if left.end_time is None:
             end_time = right.end_time
         elif right.end_time is None:
             end_time = left.end_time
         else:
-            end_time = left.end_time if left.end_time > right.end_time else right.end_time
+            end_time = (left.end_time
+                        if left.end_time > right.end_time
+                        else right.end_time)
 
         return ScraperRun(
             start_time=start_time,
@@ -194,7 +376,8 @@ class ScraperRun(Base):
             num_clusters=left.num_clusters + right.num_clusters,
             num_events=left.num_events + right.num_events,
             num_jobs=left.num_jobs + right.num_jobs,
-            num_job_runs=left.num_job_runs + right.num_job_runs
+            num_job_runs=left.num_job_runs + right.num_job_runs,
+            num_users=left.num_users + right.num_users,
         )
 
     def empty() -> "ScraperRun":
@@ -203,8 +386,42 @@ class ScraperRun(Base):
             num_clusters=0,
             num_events=0,
             num_jobs=0,
-            num_job_runs=0
+            num_job_runs=0,
+            num_users=0,
         )
+
+
+class ClusterStates(Base):
+    __tablename__ = "cluster_states"
+    user_id = Column(String, ForeignKey("users.username"), primary_key=True)
+    cluster_id = Column(String, ForeignKey("clusters.cluster_id"),
+                        primary_key=True)
+    timestamp = Column(DateTime, primary_key=True)
+    state = Column(String, primary_key=True)
+    driver_type = Column(String)
+    worker_type = Column(String)
+    num_workers = Column(Integer)
+    dbu = Column(Float)
+    interval = Column(Float, nullable=False)
+    cluster = relationship(Cluster)
+
+    __attributes__ = ["user_id", "cluster_id", "timestamp", "state",
+                      "driver_type", "worker_type", "num_workers",
+                      "dbu", "interval"]
+
+    def __str__(self):
+        return (f"ClusterState["
+                f"cluster={self.cluster}, "
+                f"state={self.state}, "
+                f"interval={self.interval}, "
+                f"dbu={self.dbu}"
+                f"]")
+
+    def __repr__(self):
+        return self.__str__()
+
+    def to_dict(self):
+        return {attr: getattr(self, attr) for attr in self.__attributes__}
 
 
 def create_db():

@@ -20,6 +20,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.5/css/bulma.min.css">
     <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0/dist/Chart.min.js"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='3rd_party/paginator.js') }}"></script>
+
+    <!-- Own libs -->
+    <script type="text/javascript" src="{{ url_for('static', filename='utils.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='charts.js') }}"></script>
+
     <style>
         html,
         body,
@@ -50,7 +56,7 @@
 </head>
 
 <body>
-    <nav class="navbar" role="navigation" aria-label="main navigation">
+    <nav class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item" href="/">
                 <img src="https://docs.databricks.com/_static/databricks-logo-mobile.png" width="112" height="28">
@@ -87,21 +93,27 @@
                     Scrape Runs
                 </a>
 
-                <a class="navbar-item" href="/alerts">
-                    <span style="margin-right: 4px;">Alerting </span><span class="tag is-danger"
-                        style="font-weight: 800;"> 2 alerts</span>
+                <a class="navbar-item" href="/settings">
+                    Settings
                 </a>
-
+                <!--
+                <a class="navbar-item" href="/alerts">
+                    <span style="margin-right: 4px;">Alerting </span>
+                    <span class="tag is-danger" style="font-weight: 800;"> 2 alerts</span>
+                </a>
+                -->
 
             </div>
 
+            <!-- User menu
             <div class="navbar-end">
                 <div class="navbar-item">
-                    <a class="nav-item is-tab">
+                    <a class="nav-item is-tab" href="/settings">
                         <span class="icon"><i class="fa fa-user"></i></span>
                     </a>
                 </div>
             </div>
+            -->
         </div>
     </nav>
 

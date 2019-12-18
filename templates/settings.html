@@ -1,0 +1,17 @@
+{% extends "index.html" %}
+{% block content %}
+
+<h1 class="title">Settings</h1>
+
+<div class="columns">
+    <table class="table">
+        {% for name, value in settings.items() %}
+        <tr>
+            <th>{{ name }}</th>
+            <td><pre>{{ value }}</pre></td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% endblock %}
