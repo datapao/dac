@@ -11,7 +11,7 @@ _.env_
 ```bash
 export FLASK_APP=main.py
 export FLASK_ENV=production
-export FLASK_CONFIG_PATH=configs/config.json
+export DAC_CONFIG_PATH=configs/config.json
 ```
 _configs/config.json_
 ```json

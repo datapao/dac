@@ -136,8 +136,9 @@ dmypy.json
 notebooks
 .ipynb_checkpoints
 
-## Configs
-configs
+## Datapao configs
+*.datapao
 
 ## DBs
 *.db
+
