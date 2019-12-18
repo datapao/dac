@@ -75,7 +75,7 @@ def get_running_jobs(jobs):
                           'name': job.run_name,
                           'timestamp': job.start_time}
                          for job in jobs])
-    numbjobs_dict = {}
+    numbjobs_dict = []
     if not jobs.empty:
         numjobs = (jobs
                    .groupby(get_time_grouper('timestamp'))
