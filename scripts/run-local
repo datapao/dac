@@ -1,1 +1,1 @@
-docker build -t dac:latest . && docker run -p 5000:5000 dac
+docker container run --publish 5000:5000 dac:0.0.1

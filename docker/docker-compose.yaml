@@ -1,8 +1,0 @@
-dac:
-    image: 629551213555.dkr.ecr.eu-central-1.amazonaws.com/dac
-    command: ["python", "-m", "main", "ui"]
-    environment:
-      DEVELOPMENT: 1
-    ports:
-      - 5000:80
-    restart: always
