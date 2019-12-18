@@ -2,11 +2,11 @@
     "workspaces": [
         {
             "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
-            "id": "workspace_id",
+            "id": "[workspace_id]",
             "type": "[AZURE|AWS]",
-            "name": "workspace_name",
-            "token": "token"
-          }, ...
+            "name": "[workspace_name]",
+            "token": "[token]"
+          }
     ],
     "prices": [
         {
