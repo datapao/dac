@@ -141,7 +141,8 @@ class Workspace(Base):
             columns = ClusterStates.__attributes__ + ['interval_dbu']
             return pd.DataFrame(columns=columns)
 
-        df = (pd.concat(cluster.state_df() for cluster in clusters)
+        df = (pd.concat([cluster.state_df() for cluster in clusters],
+                        sort=False)
               .sort_values('timestamp')
               .reset_index(drop=True))
 
