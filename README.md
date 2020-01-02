@@ -115,4 +115,4 @@ The roadmap is subject to change. If you feel excited about certain features ple
 
 ## Sponsoring
 
-DAC is currently developped with ❤️ at Datapao. If you need a feature or you think DAC is useful, please consider sponsoring the development.
+DAC is currently developped with ❤️ at [Datapao](https://datapao.com). If you need a feature or you think DAC is useful, please consider sponsoring the development.
