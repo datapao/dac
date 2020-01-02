@@ -162,25 +162,30 @@ def scrape_job_run(workspace, job_run_dict, session, result):
 
 def scrape_jobs(workspace, job_dict, session, api, result):
     log.debug(f"Scraping job, id: {job_dict['job_id']}")
+    settings = job_dict.get("settings", {})
     job = Job(
         job_id=job_dict["job_id"],
         created_time=to_time(job_dict["created_time"]),
         creator_user_name=job_dict.get("creator_user_name", "DELETED"),
-        name=job_dict["settings"]["name"],
+        name=settings["name"],
         workspace_id=workspace.id,
-        max_concurrent_runs=job_dict["settings"]["max_concurrent_runs"],
-        timeout_seconds=job_dict["settings"]["timeout_seconds"],
-        email_notifications=job_dict["settings"]["email_notifications"],
-        new_cluster=job_dict["settings"]["new_cluster"],
-        schedule_quartz_cron_expression=job_dict["settings"].get(
-            "schedule", {}).get("quartz_cron_expression", None),
-        schedule_timezone_id=job_dict["settings"].get(
-            "schedule", {}).get("timezone_id", None),
+        max_concurrent_runs=settings["max_concurrent_runs"],
+        timeout_seconds=settings["timeout_seconds"],
+        email_notifications=settings["email_notifications"],
+        # TODO: determine how should we handle the diff between new/existing
+        # clusters
+        new_cluster=(settings
+                     .get("new_cluster",
+                          {"cluster_id": settings.get("existing_cluster_id")})),
+        schedule_quartz_cron_expression=(settings
+                                         .get("schedule", {})
+                                         .get("quartz_cron_expression")),
+        schedule_timezone_id=settings.get("schedule", {}).get("timezone_id"),
         task_type="NOTEBOOK_TASK",
-        notebook_path=job_dict["settings"].get(
-            "notebook_task", {}).get("notebook_path", None),
-        notebook_revision_timestamp=job_dict["settings"].get(
-            "notebook_task", {}).get("revision_timestamp", None),
+        notebook_path=settings.get("notebook_task", {}).get("notebook_path"),
+        notebook_revision_timestamp=(settings
+                                     .get("notebook_task", {})
+                                     .get("revision_timestamp")),
     )
     session.merge(job)
     result.num_jobs += 1
