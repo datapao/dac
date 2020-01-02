@@ -151,7 +151,7 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         execution_duration=job_run_dict["execution_duration"],
         cleanup_duration=job_run_dict["cleanup_duration"],
         trigger=job_run_dict["trigger"],
-        creator_user_name=job_run_dict["creator_user_name"],
+        creator_user_name=job_run_dict.get("creator_user_name", "DELETED"),
         run_name=job_run_dict["run_name"],
         run_page_url=job_run_dict["run_page_url"],
         run_type=job_run_dict["run_type"]
@@ -165,7 +165,7 @@ def scrape_jobs(workspace, job_dict, session, api, result):
     job = Job(
         job_id=job_dict["job_id"],
         created_time=to_time(job_dict["created_time"]),
-        creator_user_name=job_dict["creator_user_name"],
+        creator_user_name=job_dict.get("creator_user_name", "DELETED"),
         name=job_dict["settings"]["name"],
         workspace_id=workspace.id,
         max_concurrent_runs=job_dict["settings"]["max_concurrent_runs"],
