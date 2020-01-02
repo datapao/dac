@@ -131,7 +131,7 @@ def scrape_job_run(workspace, job_run_dict, session, result):
     log.debug(f"Scraping job run in workspace: {workspace.name} "
               f"job ({job_run_dict['job_id']}) "
               f"run id: {job_run_dict['run_id']}")
-    instance = job_run_dict["cluster_instance"]
+    instance = job_run_dict.get("cluster_instance", {})
     state = job_run_dict["state"]
     job_run = JobRun(
         job_id=job_run_dict["job_id"],
@@ -140,7 +140,7 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         original_attempt_run_id=job_run_dict["original_attempt_run_id"],
         cluster_spec=job_run_dict["cluster_spec"],
         workspace_id=workspace.id,
-        cluster_instance_id=instance["cluster_id"],
+        cluster_instance_id=instance.get("cluster_id"),
         spark_context_id=instance.get("spark_context_id"),
         state_life_cycle_state=state["life_cycle_state"],
         state_result_state=state["result_state"],

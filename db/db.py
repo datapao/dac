@@ -290,7 +290,7 @@ class JobRun(Base):
                           primary_key=True)
     workspace = relationship(Workspace)
     cluster_spec = Column(JSON, nullable=False)
-    cluster_instance_id = Column(String, nullable=False)
+    cluster_instance_id = Column(String)
     spark_context_id = Column(BigInteger)
     state_life_cycle_state = Column(String)
     state_result_state = Column(String)
