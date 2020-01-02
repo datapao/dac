@@ -55,17 +55,8 @@ def get_cluster_dbus(clusters: pd.DataFrame, ids: list = None) -> pd.Series:
                    .sort_values('timestamp')
                    .groupby('cluster_id')
                    .tail(1))
-    last_setups['type'] = get_cluster_type(last_setups)
 
-    return last_setups.groupby('type').dbu.sum()
-
-
-def get_cluster_type(clusters: pd.DataFrame) -> pd.Series:
-    names = clusters[['cluster_name']].copy()
-    isjob = names.cluster_name.str.startswith('job')
-    names['type'] = 'interactive'
-    names.loc[isjob, 'type'] = 'job'
-    return names['type']
+    return last_setups.groupby('cluster_type').dbu.sum()
 
 
 def get_running_jobs(jobs):
