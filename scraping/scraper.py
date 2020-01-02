@@ -67,16 +67,20 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
         state_message=cluster_dict["state_message"],
         driver_type=cluster_dict["driver_node_type_id"],
         worker_type=cluster_dict["node_type_id"],
-        num_workers=cluster_dict["num_workers"],
+        num_workers=cluster_dict.get("num_workers", 0),
+        autoscale_min_workers=(cluster_dict
+                               .get('autoscale', {})
+                               .get('min_workers', 0)),
+        autoscale_max_workers=(cluster_dict
+                               .get('autoscale', {})
+                               .get('max_workers', 0)),
         spark_version=cluster_dict["spark_version"],
         creator_user_name=cluster_dict["creator_user_name"],
         autotermination_minutes=cluster_dict.get("autotermination_minutes"),
         cluster_source=cluster_dict.get("cluster_source"),
         enable_elastic_disk=cluster_dict.get("enable_elastic_disk"),
-        last_activity_time=to_time(
-            cluster_dict.get("last_activity_time")),
-        last_state_loss_time=to_time(
-            cluster_dict.get("last_state_loss_time")),
+        last_activity_time=to_time(cluster_dict.get("last_activity_time")),
+        last_state_loss_time=to_time(cluster_dict.get("last_state_loss_time")),
         pinned_by_user_name=cluster_dict.get("pinned_by_user_name"),
         spark_context_id=cluster_dict.get("spark_context_id"),
         start_time=to_time(cluster_dict["start_time"]),

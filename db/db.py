@@ -66,6 +66,8 @@ class Cluster(Base):
     driver_type = Column(String)
     worker_type = Column(String)
     num_workers = Column(Integer)
+    autoscale_min_workers = Column(Integer)
+    autoscale_max_workers = Column(Integer)
     spark_version = Column(String, nullable=False)
     creator_user_name = Column(String, ForeignKey("users.username"),
                                nullable=False)
