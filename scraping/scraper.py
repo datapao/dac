@@ -75,7 +75,7 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
                                .get('autoscale', {})
                                .get('max_workers', 0)),
         spark_version=cluster_dict["spark_version"],
-        creator_user_name=cluster_dict["creator_user_name"],
+        creator_user_name=cluster_dict.get("creator_user_name", "DELETED"),
         autotermination_minutes=cluster_dict.get("autotermination_minutes"),
         cluster_source=cluster_dict.get("cluster_source"),
         enable_elastic_disk=cluster_dict.get("enable_elastic_disk"),
