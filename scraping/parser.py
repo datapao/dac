@@ -29,8 +29,10 @@ class EventParser:
         # Indicates that a disk was low on space and disk space
         # could not be expanded.
         "FAILED_TO_EXPAND_DISK",
-        # Indicates that the cluster scoped init script has started.
+        # Indicates that the cluster scoped init script is starting.
         "INIT_SCRIPTS_STARTING",
+        # Indicates that the cluster scoped init script has started.
+        "INIT_SCRIPTS_STARTED",
         # Indicates that the cluster scoped init script has finished.
         "INIT_SCRIPTS_FINISHED",
         # Indicates that the cluster is being started.
