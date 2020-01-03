@@ -70,7 +70,7 @@ class Cluster(Base):
     autoscale_max_workers = Column(Integer)
     spark_version = Column(String, nullable=False)
     creator_user_name = Column(String, ForeignKey("users.username"),
-                               nullable=False)
+                               nullable=True)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
     workspace = relationship("Workspace")
     autotermination_minutes = Column(Integer)
@@ -265,7 +265,7 @@ class Job(Base):
     job_id = Column(BigInteger, primary_key=True)
     created_time = Column(DateTime, primary_key=True)
     creator_user_name = Column(String, ForeignKey("users.username"),
-                               nullable=False)
+                               nullable=True)
     name = Column(String, nullable=False)
     timeout_seconds = Column(Integer, nullable=False)
     email_notifications = Column(JSON, nullable=False)
@@ -301,7 +301,7 @@ class JobRun(Base):
     execution_duration = Column(Integer)
     cleanup_duration = Column(Integer)
     trigger = Column(String, nullable=False)
-    creator_user_name = Column(String, nullable=False)
+    creator_user_name = Column(String, nullable=True)
     run_name = Column(String, nullable=False)
     run_page_url = Column(String)
     run_type = Column(String, nullable=False)
@@ -313,7 +313,7 @@ class ScraperRun(Base):
     FAILED = "FAILED"
     IN_PROGRESS = "IN_PROGRESS"
 
-    __tablename__ = "screper-run"
+    __tablename__ = "scraper-run"
     scraper_run_id = Column(String, primary_key=True)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)

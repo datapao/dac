@@ -156,7 +156,6 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         execution_duration=job_run_dict["execution_duration"],
         cleanup_duration=job_run_dict["cleanup_duration"],
         trigger=job_run_dict["trigger"],
-        creator_user_name=job_run_dict.get("creator_user_name", "DELETED"),
         run_name=job_run_dict["run_name"],
         run_page_url=job_run_dict["run_page_url"],
         run_type=job_run_dict["run_type"]
