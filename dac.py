@@ -149,8 +149,8 @@ def view_workspace(workspace_id):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        cost_summary_dict = {key: (cost_summary_dict['interactive'][key]
-                                   + cost_summary_dict['job'][key])
+        cost_summary_dict = {key: sum([cost_summary_dict[type][key]
+                                       for type in results.keys()])
                              for key in cost_summary_dict['job']}
 
         top_users = (aggregate(df=states,
@@ -331,8 +331,8 @@ def view_user(username):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        cost_summary_dict = {key: (cost_summary_dict['interactive'][key]
-                                   + cost_summary_dict['job'][key])
+        cost_summary_dict = {key: sum([cost_summary_dict[type][key]
+                                       for type in results.keys()])
                              for key in cost_summary_dict['job']}
     else:
         workspaces_dict = [{'workspace_id': w.workspace.id,

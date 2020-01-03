@@ -135,10 +135,14 @@ def aggregate_for_entity(states: pd.DataFrame):
 
 
 def aggregate_by_types(states: pd.DataFrame, aggregation_func):
-    interactive_states = states.loc[states.cluster_type == 'interactive']
-    job_states = states.loc[states.cluster_type == 'job']
+    results = {}
 
-    return {
-        'interactive': aggregation_func(interactive_states),
-        'job': aggregation_func(job_states)
-    }
+    interactive_states = states.loc[states.cluster_type == 'interactive']
+    if not interactive_states.empty:
+        results['interactive'] = aggregation_func(interactive_states)
+
+    job_states = states.loc[states.cluster_type == 'job']
+    if not job_states.empty:
+        results['job'] = aggregation_func(job_states)
+
+    return results
