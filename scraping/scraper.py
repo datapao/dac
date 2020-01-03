@@ -67,15 +67,14 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
         state_message=cluster_dict["state_message"],
         driver_type=cluster_dict["driver_node_type_id"],
         worker_type=cluster_dict["node_type_id"],
-        num_workers=cluster_dict.get("num_workers", 0),
+        num_workers=cluster_dict.get("num_workers"),
         autoscale_min_workers=(cluster_dict
                                .get('autoscale', {})
-                               .get('min_workers', 0)),
+                               .get('min_workers')),
         autoscale_max_workers=(cluster_dict
                                .get('autoscale', {})
-                               .get('max_workers', 0)),
+                               .get('max_workers')),
         spark_version=cluster_dict["spark_version"],
-        creator_user_name=cluster_dict.get("creator_user_name", "DELETED"),
         autotermination_minutes=cluster_dict.get("autotermination_minutes"),
         cluster_source=cluster_dict.get("cluster_source"),
         enable_elastic_disk=cluster_dict.get("enable_elastic_disk"),
@@ -99,6 +98,9 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
             cluster.termination_reason_inactivity_min = params.get("inactivity_duration_min")
             cluster.termination_reason_username = params.get("username")
 
+    if "creator_user_name" in cluster_dict:
+        cluster.creator_user_name = cluster_dict.get("creator_user_name")
+
     session.merge(cluster)
     result.num_clusters += 1
     log.debug(f"Started scraping events for cluster {cluster.cluster_name}")
@@ -116,7 +118,7 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
     # TODO: Events are not commited yet, so we cannot parse them.
     # Possible workarounds:
     # - move this functionality after events are in the db.
-    #   problem: requires two commits
+    #   problem: requires two db commits
     # - change ClusterState to use raw events instead of querying it from the
     #   db. affected functions: parser.py/parse_events, parser.py/query_events
     #   this option is implemented currently, we should consider other options.
@@ -135,6 +137,7 @@ def scrape_job_run(workspace, job_run_dict, session, result):
     state = job_run_dict.get("state", {})
     state_life_cycle_state = state.get('life_cycle_state')
     failed_run = state_life_cycle_state == 'INTERNAL_ERROR'
+
     job_run = JobRun(
         job_id=job_run_dict["job_id"],
         run_id=job_run_dict["run_id"],
@@ -158,8 +161,23 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         run_page_url=job_run_dict["run_page_url"],
         run_type=job_run_dict["run_type"]
     )
+
+    if "creator_user_name" in job_run_dict:
+        job_run.creator_user_name = job_run_dict.get("creator_user_name")
+
     session.merge(job_run)
     result.num_job_runs += 1
+
+
+def get_task_type(settings):
+    task_types = ['notebook_task', 'spark_jar_task',
+                  'spark_python_task', 'spark_submit_task']
+    for task_type in task_types:
+        if settings.get(task_type) is not None:
+            return task_type.upper()
+
+    log.warning("Couldn't determine job task type, falling back to 'UNKNOWN'.")
+    return 'UNKNOWN'
 
 
 def scrape_jobs(workspace, job_dict, session, api, result):
@@ -168,7 +186,6 @@ def scrape_jobs(workspace, job_dict, session, api, result):
     job = Job(
         job_id=job_dict["job_id"],
         created_time=to_time(job_dict["created_time"]),
-        creator_user_name=job_dict.get("creator_user_name", "DELETED"),
         name=settings["name"],
         workspace_id=workspace.id,
         max_concurrent_runs=settings["max_concurrent_runs"],
@@ -183,12 +200,16 @@ def scrape_jobs(workspace, job_dict, session, api, result):
                                          .get("schedule", {})
                                          .get("quartz_cron_expression")),
         schedule_timezone_id=settings.get("schedule", {}).get("timezone_id"),
-        task_type="NOTEBOOK_TASK",
+        task_type=get_task_type(settings),
         notebook_path=settings.get("notebook_task", {}).get("notebook_path"),
         notebook_revision_timestamp=(settings
                                      .get("notebook_task", {})
                                      .get("revision_timestamp")),
     )
+
+    if "creator_user_name" in job_dict:
+        job.creator_user_name = job_dict.get("creator_user_name")
+
     session.merge(job)
     result.num_jobs += 1
     job_runs_response = api.jobs.list_runs(job_id=job_dict["job_id"],

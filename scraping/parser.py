@@ -112,8 +112,8 @@ class EventParser:
     def process_event(self, event: dict) -> dict:
         etype = event.get('type')
         if etype not in self.events:
-            raise ValueError(f'Unkown event: {event}\n'
-                             f'Recognized events are: {self.events}')
+            log.warning(f'Unkown event: {event}\n'
+                        f'Recognized events are: {self.events}')
 
         details = event.get('details', {})
         user = details.get('user')
