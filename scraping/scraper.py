@@ -67,16 +67,19 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
         state_message=cluster_dict["state_message"],
         driver_type=cluster_dict["driver_node_type_id"],
         worker_type=cluster_dict["node_type_id"],
-        num_workers=cluster_dict["num_workers"],
+        num_workers=cluster_dict.get("num_workers"),
+        autoscale_min_workers=(cluster_dict
+                               .get('autoscale', {})
+                               .get('min_workers')),
+        autoscale_max_workers=(cluster_dict
+                               .get('autoscale', {})
+                               .get('max_workers')),
         spark_version=cluster_dict["spark_version"],
-        creator_user_name=cluster_dict["creator_user_name"],
         autotermination_minutes=cluster_dict.get("autotermination_minutes"),
         cluster_source=cluster_dict.get("cluster_source"),
         enable_elastic_disk=cluster_dict.get("enable_elastic_disk"),
-        last_activity_time=to_time(
-            cluster_dict.get("last_activity_time")),
-        last_state_loss_time=to_time(
-            cluster_dict.get("last_state_loss_time")),
+        last_activity_time=to_time(cluster_dict.get("last_activity_time")),
+        last_state_loss_time=to_time(cluster_dict.get("last_state_loss_time")),
         pinned_by_user_name=cluster_dict.get("pinned_by_user_name"),
         spark_context_id=cluster_dict.get("spark_context_id"),
         start_time=to_time(cluster_dict["start_time"]),
@@ -95,6 +98,9 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
             cluster.termination_reason_inactivity_min = params.get("inactivity_duration_min")
             cluster.termination_reason_username = params.get("username")
 
+    if "creator_user_name" in cluster_dict:
+        cluster.creator_user_name = cluster_dict.get("creator_user_name")
+
     session.merge(cluster)
     result.num_clusters += 1
     log.debug(f"Started scraping events for cluster {cluster.cluster_name}")
@@ -112,7 +118,7 @@ def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result
     # TODO: Events are not commited yet, so we cannot parse them.
     # Possible workarounds:
     # - move this functionality after events are in the db.
-    #   problem: requires two commits
+    #   problem: requires two db commits
     # - change ClusterState to use raw events instead of querying it from the
     #   db. affected functions: parser.py/parse_events, parser.py/query_events
     #   this option is implemented currently, we should consider other options.
@@ -127,8 +133,11 @@ def scrape_job_run(workspace, job_run_dict, session, result):
     log.debug(f"Scraping job run in workspace: {workspace.name} "
               f"job ({job_run_dict['job_id']}) "
               f"run id: {job_run_dict['run_id']}")
-    instance = job_run_dict["cluster_instance"]
-    state = job_run_dict["state"]
+    instance = job_run_dict.get("cluster_instance", {})
+    state = job_run_dict.get("state", {})
+    state_life_cycle_state = state.get('life_cycle_state')
+    failed_run = state_life_cycle_state == 'INTERNAL_ERROR'
+
     job_run = JobRun(
         job_id=job_run_dict["job_id"],
         run_id=job_run_dict["run_id"],
@@ -136,10 +145,10 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         original_attempt_run_id=job_run_dict["original_attempt_run_id"],
         cluster_spec=job_run_dict["cluster_spec"],
         workspace_id=workspace.id,
-        cluster_instance_id=instance["cluster_id"],
+        cluster_instance_id=instance.get("cluster_id"),
         spark_context_id=instance.get("spark_context_id"),
-        state_life_cycle_state=state["life_cycle_state"],
-        state_result_state=state["result_state"],
+        state_life_cycle_state=state_life_cycle_state,
+        state_result_state=state["result_state"] if not failed_run else 'FAIL',
         state_state_message=state["state_message"],
         task=job_run_dict["task"],
         start_time=to_time(job_run_dict["start_time"]),
@@ -147,37 +156,60 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         execution_duration=job_run_dict["execution_duration"],
         cleanup_duration=job_run_dict["cleanup_duration"],
         trigger=job_run_dict["trigger"],
-        creator_user_name=job_run_dict["creator_user_name"],
+        creator_user_name=job_run_dict.get("creator_user_name", "DELETED"),
         run_name=job_run_dict["run_name"],
         run_page_url=job_run_dict["run_page_url"],
         run_type=job_run_dict["run_type"]
     )
+
+    if "creator_user_name" in job_run_dict:
+        job_run.creator_user_name = job_run_dict.get("creator_user_name")
+
     session.merge(job_run)
     result.num_job_runs += 1
 
 
+def get_task_type(settings):
+    task_types = ['notebook_task', 'spark_jar_task',
+                  'spark_python_task', 'spark_submit_task']
+    for task_type in task_types:
+        if settings.get(task_type) is not None:
+            return task_type.upper()
+
+    log.warning("Couldn't determine job task type, falling back to 'UNKNOWN'.")
+    return 'UNKNOWN'
+
+
 def scrape_jobs(workspace, job_dict, session, api, result):
     log.debug(f"Scraping job, id: {job_dict['job_id']}")
+    settings = job_dict.get("settings", {})
     job = Job(
         job_id=job_dict["job_id"],
         created_time=to_time(job_dict["created_time"]),
-        creator_user_name=job_dict["creator_user_name"],
-        name=job_dict["settings"]["name"],
+        name=settings["name"],
         workspace_id=workspace.id,
-        max_concurrent_runs=job_dict["settings"]["max_concurrent_runs"],
-        timeout_seconds=job_dict["settings"]["timeout_seconds"],
-        email_notifications=job_dict["settings"]["email_notifications"],
-        new_cluster=job_dict["settings"]["new_cluster"],
-        schedule_quartz_cron_expression=job_dict["settings"].get(
-            "schedule", {}).get("quartz_cron_expression", None),
-        schedule_timezone_id=job_dict["settings"].get(
-            "schedule", {}).get("timezone_id", None),
-        task_type="NOTEBOOK_TASK",
-        notebook_path=job_dict["settings"].get(
-            "notebook_task", {}).get("notebook_path", None),
-        notebook_revision_timestamp=job_dict["settings"].get(
-            "notebook_task", {}).get("revision_timestamp", None),
+        max_concurrent_runs=settings["max_concurrent_runs"],
+        timeout_seconds=settings["timeout_seconds"],
+        email_notifications=settings["email_notifications"],
+        # TODO: determine how should we handle the diff between new/existing
+        # clusters
+        new_cluster=(settings
+                     .get("new_cluster",
+                          {"cluster_id": settings.get("existing_cluster_id")})),
+        schedule_quartz_cron_expression=(settings
+                                         .get("schedule", {})
+                                         .get("quartz_cron_expression")),
+        schedule_timezone_id=settings.get("schedule", {}).get("timezone_id"),
+        task_type=get_task_type(settings),
+        notebook_path=settings.get("notebook_task", {}).get("notebook_path"),
+        notebook_revision_timestamp=(settings
+                                     .get("notebook_task", {})
+                                     .get("revision_timestamp")),
     )
+
+    if "creator_user_name" in job_dict:
+        job.creator_user_name = job_dict.get("creator_user_name")
+
     session.merge(job)
     result.num_jobs += 1
     job_runs_response = api.jobs.list_runs(job_id=job_dict["job_id"],

@@ -66,6 +66,8 @@ class Cluster(Base):
     driver_type = Column(String)
     worker_type = Column(String)
     num_workers = Column(Integer)
+    autoscale_min_workers = Column(Integer)
+    autoscale_max_workers = Column(Integer)
     spark_version = Column(String, nullable=False)
     creator_user_name = Column(String, ForeignKey("users.username"),
                                nullable=False)
@@ -288,7 +290,7 @@ class JobRun(Base):
                           primary_key=True)
     workspace = relationship(Workspace)
     cluster_spec = Column(JSON, nullable=False)
-    cluster_instance_id = Column(String, nullable=False)
+    cluster_instance_id = Column(String)
     spark_context_id = Column(BigInteger)
     state_life_cycle_state = Column(String)
     state_result_state = Column(String)

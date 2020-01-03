@@ -75,8 +75,9 @@ def get_level_info_data():
                          for workspace in workspaces)
 
     dbu_counts = get_cluster_dbus(actives)
-    dbu_cost = (dbu_counts['interactive'] * interactive_dbu_price
-                + dbu_counts['job'] * job_dbu_price)
+    dbu_count_dict = dbu_counts.to_dict()
+    dbu_cost = (dbu_count_dict.get('interactive', 0.0) * interactive_dbu_price
+                + dbu_count_dict.get('job', 0.0) * job_dbu_price)
 
     return {
         "clusters": cluster_count,
