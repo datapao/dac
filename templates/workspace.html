@@ -182,21 +182,35 @@
     var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
     var numjobs = JSON.parse('{{ numjobs | tojson | safe }}');
 
-    interactive_time_stats = time_stats['interactive'];
-    interactive_interval_dbu_sum = interactive_time_stats.map(({ interval_dbu_sum }) => interval_dbu_sum);
-    interactive_interval_sum = interactive_time_stats.map(({ interval_sum }) => interval_sum);
-    interactive_worker_hours_sum = interactive_time_stats.map(({ worker_hours_sum }) => worker_hours_sum);
-    interactive_active_clusters_cnt = interactive_time_stats.map(({ cluster_id_nunique }) => cluster_id_nunique);
+    if("interactive" in time_stats) {
+        interactive_time_stats = time_stats['interactive'];
+        interactive_interval_dbu_sum = interactive_time_stats.map(({ interval_dbu_sum }) => interval_dbu_sum);
+        interactive_interval_sum = interactive_time_stats.map(({ interval_sum }) => interval_sum);
+        interactive_worker_hours_sum = interactive_time_stats.map(({ worker_hours_sum }) => worker_hours_sum);
+        interactive_active_clusters_cnt = interactive_time_stats.map(({ cluster_id_nunique }) => cluster_id_nunique);
+        labels = time_stats['interactive'].map(({ ts }) => ts);
+    } else {
+        interactive_interval_dbu_sum = undefined;
+        interactive_interval_sum = undefined;
+        interactive_worker_hours_sum = undefined;
+        interactive_active_clusters_cnt = undefined;
+    };
 
-    job_time_stats = time_stats['job'];
-    job_interval_dbu_sum = job_time_stats.map(({ interval_dbu_sum }) => interval_dbu_sum);
-    job_interval_sum = job_time_stats.map(({ interval_sum }) => interval_sum);
-    job_worker_hours_sum = job_time_stats.map(({ worker_hours_sum }) => worker_hours_sum);
-    job_active_clusters_cnt = job_time_stats.map(({ cluster_id_nunique }) => cluster_id_nunique);
+    if("job" in time_stats) {
+        job_time_stats = time_stats['job'];
+        job_interval_dbu_sum = job_time_stats.map(({ interval_dbu_sum }) => interval_dbu_sum);
+        job_interval_sum = job_time_stats.map(({ interval_sum }) => interval_sum);
+        job_worker_hours_sum = job_time_stats.map(({ worker_hours_sum }) => worker_hours_sum);
+        job_active_clusters_cnt = job_time_stats.map(({ cluster_id_nunique }) => cluster_id_nunique);
+        labels = time_stats['job'].map(({ ts }) => ts);
+    } else {
+        job_interval_dbu_sum = undefined;
+        job_interval_sum = undefined;
+        job_worker_hours_sum = undefined;
+        job_active_clusters_cnt = undefined;
+    };
 
     jobs_count = numjobs.map(({job_id}) => job_id);
-
-    labels = time_stats['job'].map(({ ts }) => ts);
 
     stacked_chart('chart-price', 'Total DBU', 'bar', true, labels, 'Interactive', interactive_interval_dbu_sum, 'Job', job_interval_dbu_sum);
     stacked_chart('chart-clusters', 'Total Run time (hours)', 'line', true, labels, 'Interactive', interactive_interval_sum, 'Job', job_interval_sum);
