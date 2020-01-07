@@ -135,8 +135,6 @@ def scrape_job_run(workspace, job_run_dict, session, result):
               f"run id: {job_run_dict['run_id']}")
     instance = job_run_dict.get("cluster_instance", {})
     state = job_run_dict.get("state", {})
-    state_life_cycle_state = state.get('life_cycle_state')
-    failed_run = state_life_cycle_state == 'INTERNAL_ERROR'
 
     job_run = JobRun(
         job_id=job_run_dict["job_id"],
@@ -147,8 +145,8 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         workspace_id=workspace.id,
         cluster_instance_id=instance.get("cluster_id"),
         spark_context_id=instance.get("spark_context_id"),
-        state_life_cycle_state=state_life_cycle_state,
-        state_result_state=state["result_state"] if not failed_run else 'FAIL',
+        state_life_cycle_state=state.get('life_cycle_state'),
+        state_result_state=state.get('result_state'),
         state_state_message=state["state_message"],
         task=job_run_dict["task"],
         start_time=to_time(job_run_dict["start_time"]),
