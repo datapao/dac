@@ -276,7 +276,7 @@ def query_instance_types() -> pd.DataFrame:
 
     # AWS parse
     aws_url = "https://databricks.com/product/aws-pricing/instance-types"
-    aws = pd.read_html(aws_url)[0].drop(columns=[6])
+    aws = pd.read_html(aws_url)[0].drop(columns=[0])
     aws.columns = ['type', 'cpu', 'mem', 'light', 'job', 'analysis']
     aws['type'] = aws.type.str.extract(regex)
 
