@@ -1,7 +1,6 @@
 import datetime
 import functools
 import logging
-import os
 import threading
 import time
 import json
@@ -14,8 +13,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
-from db import Base, Cluster, Workspace, Event, Job, JobRun, User, UserWorkspace
-from db import ScraperRun, ClusterStates
+from db import Base, Cluster, Workspace, Event, Job, JobRun
+from db import User, UserWorkspace, ScraperRun, ClusterStates
 from scraping.parser import parse_events, query_instance_types
 
 
@@ -53,8 +52,7 @@ def upsert_states(session: "Session", df: pd.DataFrame) -> int:
 def to_time(t):
     if t is not None:
         return datetime.datetime.utcfromtimestamp(t / 1000)
-    else:
-        return None
+    return None
 
 
 def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result):
@@ -148,15 +146,15 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         state_life_cycle_state=state.get('life_cycle_state'),
         state_result_state=state.get('result_state'),
         state_state_message=state["state_message"],
-        task=job_run_dict["task"],
-        start_time=to_time(job_run_dict["start_time"]),
-        setup_duration=job_run_dict["setup_duration"],
-        execution_duration=job_run_dict["execution_duration"],
-        cleanup_duration=job_run_dict["cleanup_duration"],
-        trigger=job_run_dict["trigger"],
-        run_name=job_run_dict["run_name"],
-        run_page_url=job_run_dict["run_page_url"],
-        run_type=job_run_dict["run_type"]
+        task=job_run_dict.get("task"),
+        start_time=to_time(job_run_dict.get("start_time")),
+        setup_duration=job_run_dict.get("setup_duration"),
+        execution_duration=job_run_dict.get("execution_duration"),
+        cleanup_duration=job_run_dict.get("cleanup_duration"),
+        trigger=job_run_dict.get("trigger"),
+        run_name=job_run_dict.get("run_name"),
+        run_page_url=job_run_dict.get("run_page_url"),
+        run_type=job_run_dict.get("run_type")
     )
 
     if "creator_user_name" in job_run_dict:
@@ -183,35 +181,36 @@ def scrape_jobs(workspace, job_dict, session, api, result):
     job = Job(
         job_id=job_dict["job_id"],
         created_time=to_time(job_dict["created_time"]),
-        name=settings["name"],
+        name=settings.get("name", "Untitled"),
         workspace_id=workspace.id,
-        max_concurrent_runs=settings["max_concurrent_runs"],
-        timeout_seconds=settings["timeout_seconds"],
-        email_notifications=settings["email_notifications"],
-        # TODO: determine how should we handle the diff between new/existing
-        # clusters
-        new_cluster=(settings
-                     .get("new_cluster",
-                          {"cluster_id": settings.get("existing_cluster_id")})),
-        schedule_quartz_cron_expression=(settings
-                                         .get("schedule", {})
-                                         .get("quartz_cron_expression")),
-        schedule_timezone_id=settings.get("schedule", {}).get("timezone_id"),
+        max_concurrent_runs=settings.get("max_concurrent_runs", 1),
+        timeout_seconds=settings.get("timeout_seconds"),
+        email_notifications=settings.get("email_notifications", []),
+        new_cluster=settings.get("new_cluster"),
+        existing_cluster_id=settings.get("existing_cluster_id"),
         task_type=get_task_type(settings),
-        notebook_path=settings.get("notebook_task", {}).get("notebook_path"),
-        notebook_revision_timestamp=(settings
-                                     .get("notebook_task", {})
-                                     .get("revision_timestamp")),
+        task_parameters=settings.get(get_task_type(settings).lower(), {})
     )
 
     if "creator_user_name" in job_dict:
         job.creator_user_name = job_dict.get("creator_user_name")
 
+    if "schedule" in settings:
+        schedule = settings.get("schedule", {})
+        job.schedule_quartz_cron_expression = schedule.get("quartz_cron_expression")
+        job.schedule_timezone_id = schedule.get("timezone_id")
+
+    if job.task_type == 'notebook':
+        task = settings.get("notebook_task", {})
+        job.notebook_path = task.get("notebook_path")
+        job.notebook_revision_timestamp = task.get("revision_timestamp")
+
     session.merge(job)
     result.num_jobs += 1
-    job_runs_response = api.jobs.list_runs(job_id=job_dict["job_id"],
-                                           limit=120)
-    job_runs = job_runs_response.get("runs", [])
+    job_runs = query_paginated(api.jobs.list_runs,
+                               {'job_id': job_dict["job_id"]},
+                               'runs')
+
     log.debug(f"Scraping job runs for job_id: {job_dict['job_id']}")
     for job_run in job_runs:
         scrape_job_run(workspace, job_run, session, result)

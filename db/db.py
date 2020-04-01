@@ -1,6 +1,5 @@
 from uuid import uuid4
 from datetime import datetime
-from collections import defaultdict
 
 import pandas as pd
 
@@ -273,11 +272,11 @@ class Job(Base):
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
     workspace = relationship(Workspace)
     new_cluster = Column(JSON)
+    existing_cluster_id = Column(String)
     schedule_quartz_cron_expression = Column(String)
     schedule_timezone_id = Column(String)
     task_type = Column(String)
-    notebook_path = Column(String)
-    notebook_revision_timestamp = Column(Integer)
+    task_parameters = Column(JSON)
     max_concurrent_runs = Column(Integer)
 
 
