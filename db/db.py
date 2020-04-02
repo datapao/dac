@@ -269,7 +269,7 @@ class Event(Base):
 
         return '\n- '.join(diff)
 
-import logging
+
 class Job(Base):
     __tablename__ = "jobs"
 
