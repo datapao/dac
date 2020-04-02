@@ -1,0 +1,74 @@
+{% extends "index.html" %}
+{% block content %}
+
+<h1 class="title">Jobs</h1>
+{% include 'level-info-bar.html' %}
+
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-count"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-dbu"></canvas>
+    </div>
+</div>
+
+<h3 class="title is-3">Jobs</h3>
+<section class="section">
+    <div id="jobs-table">
+        <table class="table is-hoverable is-fullwidth">
+            <thead>
+                <tr>
+                    <td>ID</td>
+                    <td>Name</td>
+                    <td>Workspace ID</td>
+                    <td>Creator Name</td>
+                    <td>Number of runs</td>
+                    <td>Median cost (last 7 runs)</td>
+                    <td>Median DBU (last 7 runs)</td>
+                    <td>Median Runtime (last 7 runs)</td>
+                    <td>Cost (all time)</td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr>
+                    <td>{{ job.job_id }}</td>
+                    <td><a href="{{ url_for("view_job", job_id=job.job_id) }}">{{ job.name }}</a></td>
+                    <td><a href="{{ url_for("view_workspace", workspace_id=job.workspace_id) }}">{{ job.workspace.name }}</a></td>
+                    <td><a href="{{ url_for("view_user", username=job.creator_user_name) }}">{{ job.creator_user_name }}</a></td>
+                    <td>{{ job.num_runs() | round(2, 'common') }}</td>
+                    <td>${{ extra_stats[job.job_id]['cost']['median'] | round(2, 'common') }}</td>
+                    <td>{{ extra_stats[job.job_id]['dbu']['median'] | round(2, 'common') }} DBU</td>
+                    <td>{{ extra_stats[job.job_id]['duration']['median'] | round(2, 'common') }}h</td>
+                    <td>${{ job.cost(price_config=price_settings) | round(2, 'common') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="jobs-box" class="box"></div>
+    </div>
+</section>
+
+<script>
+
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+
+    counts = time_stats.map(({run_id}) => run_id);
+    dbus  = time_stats.map(({dbu}) => dbu);
+    labels = time_stats.map(({ts}) => ts);
+
+    chart('chart-count', false, 'Number of runs', 'bar', true, labels, counts);
+    chart('chart-dbu', false, 'Runtime (hours)', 'line', true, labels, dbus);
+
+    paginator({
+        table: document.getElementById("jobs-table").getElementsByTagName("table")[0],
+        box: document.getElementById("jobs-box"),
+        active_class: "color_page"
+    });
+
+</script>
+
+
+{% endblock %}
