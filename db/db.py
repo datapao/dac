@@ -19,10 +19,12 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
+
     username = Column(String, primary_key=True)
     name = Column(String)
     is_active = Column(Boolean)
     primary_email = Column(String)
+
     user_workspaces = relationship("UserWorkspace", back_populates='user')
 
     def state_df(self):
@@ -46,17 +48,20 @@ class User(Base):
 
 class UserWorkspace(Base):
     __tablename__ = 'user_workspaces'
+
     user_id = Column(String, nullable=False)
     username = Column(String, ForeignKey("users.username"),
                       primary_key=True)
     workspace_id = Column(String, ForeignKey("workspaces.id"),
                           primary_key=True)
+
     user = relationship('User', back_populates='user_workspaces')
     workspace = relationship('Workspace', back_populates='user_workspaces')
 
 
 class Cluster(Base):
     __tablename__ = "clusters"
+
     cluster_id = Column(String, primary_key=True)
     cluster_name = Column(String, nullable=False)
     state = Column(String, nullable=False)
@@ -71,7 +76,6 @@ class Cluster(Base):
     creator_user_name = Column(String, ForeignKey("users.username"),
                                nullable=True)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
-    workspace = relationship("Workspace")
     autotermination_minutes = Column(Integer)
     cluster_source = Column(String)
     enable_elastic_disk = Column(Boolean)
@@ -89,6 +93,8 @@ class Cluster(Base):
     aws_attributes = Column(JSON)
     spark_conf = Column(JSON)
     spark_env_vars = Column(JSON)
+
+    workspace = relationship("Workspace")
     events = relationship("Event")
     cluster_states = relationship("ClusterStates")
 
@@ -120,16 +126,18 @@ class Cluster(Base):
 
 class Workspace(Base):
     __tablename__ = "workspaces"
+    __attributes__ = ['id', 'name', 'url', 'type', 'token']
+
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     url = Column(String, nullable=False)
     # AWS or AZURE
     type = Column(String, nullable=False)
     token = Column(String, nullable=False)
+
     clusters = relationship(Cluster)
     user_workspaces = relationship('UserWorkspace', back_populates='workspace')
     jobruns = relationship('JobRun')
-    __attributes__ = ['id', 'name', 'url', 'type', 'token']
 
     def active_clusters(self):
         return [cluster for cluster in self.clusters
@@ -182,6 +190,7 @@ class Workspace(Base):
 
 class Event(Base):
     __tablename__ = "events"
+
     cluster_id = Column(String,
                         ForeignKey("clusters.cluster_id"),
                         primary_key=True,
@@ -189,6 +198,7 @@ class Event(Base):
     timestamp = Column(DateTime, primary_key=True, nullable=False)
     details = Column(JSON, nullable=False)
     type = Column(String, primary_key=True, nullable=False)
+
     cluster = relationship(Cluster)
 
     def human_details(self):
@@ -259,9 +269,10 @@ class Event(Base):
 
         return '\n- '.join(diff)
 
-
+import logging
 class Job(Base):
     __tablename__ = "jobs"
+
     job_id = Column(BigInteger, primary_key=True)
     created_time = Column(DateTime, primary_key=True)
     creator_user_name = Column(String, ForeignKey("users.username"),
@@ -270,7 +281,6 @@ class Job(Base):
     timeout_seconds = Column(Integer, nullable=False)
     email_notifications = Column(JSON, nullable=False)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
-    workspace = relationship(Workspace)
     new_cluster = Column(JSON)
     existing_cluster_id = Column(String)
     schedule_quartz_cron_expression = Column(String)
@@ -279,18 +289,69 @@ class Job(Base):
     task_parameters = Column(JSON)
     max_concurrent_runs = Column(Integer)
 
+    workspace = relationship(Workspace)
+    jobruns = relationship("JobRun",
+                           back_populates='job',
+                           order_by="JobRun.start_time")
+
+    def runs(self, last=None, since_days=None):
+        runs = self.jobruns
+
+        if since_days is not None:
+            runs = [run for run in runs if run.start_time >= since(since_days)]
+
+        if last is not None:
+            runs = runs[-last:]
+
+        return runs
+
+    def num_runs(self, last=None, since_days=None):
+        return len(self.runs(last, since_days))
+
+    def duration(self, last=None, since_days=None):
+        return sum([run.duration() for run in self.runs(last, since_days)])
+
+    def dbu(self, last=None, since_days=None):
+        return sum([run.dbu() for run in self.runs(last, since_days)])
+
+    def cost(self, price_config, last=None, since_days=None):
+        return sum([run.cost(price_config)
+                    for run in self.runs(last, since_days)])
+
+    def run_df(self, price_config=None, last=None, since_days=None):
+        return pd.DataFrame([run.to_dict(price_config)
+                             for run in self.runs(last, since_days)])
+
+    def run_stats(self, aggs, price_config=None, last=None, since_days=None):
+        if 'cost' in aggs and price_config is None:
+            raise ValueError("Couldn't compute cost without price config!")
+
+        df = self.run_df(price_config, last, since_days)
+        if df.empty:
+            return pd.DataFrame({key: 0 for key in aggs})
+
+        return df.agg(aggs)
+
+    def state_df(self, last=None, since_days=None):
+        return pd.concat(run.cluster.state_df()
+                         for run in self.runs(last, since_days))
+
 
 class JobRun(Base):
     __tablename__ = "jobruns"
-    job_id = Column(BigInteger, primary_key=True)
+    __attributes__ = ['job_id', 'run_id', 'workspace_id', 'cluster_instance_id',
+                      'start_time', 'creator_user_name', 'run_name',
+                      'duration', 'dbu']
+
+    job_id = Column(BigInteger, ForeignKey("jobs.job_id"), primary_key=True)
     run_id = Column(BigInteger, primary_key=True)
     number_in_job = Column(Integer)
     original_attempt_run_id = Column(Integer)
     workspace_id = Column(String, ForeignKey("workspaces.id"),
                           primary_key=True)
-    workspace = relationship(Workspace)
     cluster_spec = Column(JSON, nullable=False)
-    cluster_instance_id = Column(String)
+    cluster_instance_id = Column(String, ForeignKey("clusters.cluster_id"),
+                                 nullable=True)
     spark_context_id = Column(BigInteger)
     state_life_cycle_state = Column(String)
     state_result_state = Column(String)
@@ -301,10 +362,49 @@ class JobRun(Base):
     execution_duration = Column(Integer)
     cleanup_duration = Column(Integer)
     trigger = Column(String, nullable=False)
-    creator_user_name = Column(String, nullable=True)
+    creator_user_name = Column(String, ForeignKey("users.username"),
+                               nullable=True)
     run_name = Column(String, nullable=False)
     run_page_url = Column(String)
     run_type = Column(String, nullable=False)
+
+    job = relationship(Job, back_populates='jobruns')
+    workspace = relationship(Workspace)
+    cluster = relationship(Cluster)
+
+    def start_date(self):
+        return datetime.fromtimestamp(self.start_time)
+
+    def duration(self):
+        millisec = ((self.setup_duration or 0.0)
+                    + (self.execution_duration or 0.0)
+                    + (self.cleanup_duration or 0.0))
+        hours = millisec / 3_600_000
+        return hours
+
+    def dbu(self):
+        return self.cluster.dbu_per_hour() * self.duration()
+
+    def cost(self, price_config):
+        return self.cluster.cost_per_hour(price_config) * self.duration()
+
+    def to_dict(self, price_config=None):
+        mapping = {'cluster_instance_id': 'cluster_id',
+                   'creator_user_name': 'username',
+                   'run_name': 'name'}
+
+        attributes = {}
+        for attr in self.__attributes__:
+            name = mapping.get(attr, attr)
+            attribute = getattr(self, attr)
+            if callable(attribute):
+                attribute = attribute()
+            attributes[name] = attribute
+
+        if price_config is not None:
+            attributes['cost'] = self.cost(price_config)
+
+        return attributes
 
 
 class ScraperRun(Base):
@@ -314,6 +414,7 @@ class ScraperRun(Base):
     IN_PROGRESS = "IN_PROGRESS"
 
     __tablename__ = "scraper-run"
+
     scraper_run_id = Column(String, primary_key=True)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
@@ -396,6 +497,10 @@ class ScraperRun(Base):
 
 class ClusterStates(Base):
     __tablename__ = "cluster_states"
+    __attributes__ = ["user_id", "cluster_id", "timestamp", "state",
+                      "driver_type", "worker_type", "num_workers",
+                      "dbu", "interval"]
+
     user_id = Column(String, ForeignKey("users.username"), primary_key=True)
     cluster_id = Column(String, ForeignKey("clusters.cluster_id"),
                         primary_key=True)
@@ -406,11 +511,8 @@ class ClusterStates(Base):
     num_workers = Column(Integer)
     dbu = Column(Float)
     interval = Column(Float, nullable=False)
-    cluster = relationship(Cluster)
 
-    __attributes__ = ["user_id", "cluster_id", "timestamp", "state",
-                      "driver_type", "worker_type", "num_workers",
-                      "dbu", "interval"]
+    cluster = relationship(Cluster)
 
     def __str__(self):
         return (f"ClusterState["

@@ -3,11 +3,11 @@ import logging
 import json
 import os
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 
-from flask import Flask, render_template, flash
+from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
@@ -15,9 +15,8 @@ from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, get_running_jobs
 from aggregation import get_last_7_days_dbu, aggregate_for_entity
 from aggregation import aggregate_by_types
-from db import engine_url, create_db, Base
-from db import Workspace, Cluster, JobRun, User, ScraperRun
-from scraping import scrape, start_scheduled_scraping
+from db import engine_url, Base
+from db import Workspace, Cluster, Job, JobRun, User, ScraperRun
 
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
@@ -149,7 +148,7 @@ def view_workspace(workspace_id):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        # We aren't sure if we have both interactive and job
+        # We aren't sure if we have both interactive and job
         present_key = list(cost_summary_dict.keys())[0]
         cost_summary_dict = {key: sum([cost_summary_dict[type][key]
                                        for type in results.keys()])
@@ -333,7 +332,7 @@ def view_user(username):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        # We aren't sure if we have both interactive and job
+        # We aren't sure if we have both interactive and job
         present_key = list(cost_summary_dict.keys())[0]
         cost_summary_dict = {key: sum([cost_summary_dict[type][key]
                                        for type in results.keys()])
@@ -400,6 +399,84 @@ def view_users():
                            users=users,
                            active_users=active_users.to_dict('records'),
                            data=level_info_data)
+
+
+#  ======= JOBS =======
+@app.route('/jobs/<string:job_id>')
+def view_job(job_id):
+    session = create_session()
+    job = (session
+           .query(Job)
+           .filter(Job.job_id == job_id)
+           .one())
+
+    # PRICE CONFIG
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
+
+    aggregations = {'duration': ['min', 'median', 'max', 'sum'],
+                    'cost': ['min', 'median', 'max', 'sum']}
+    last7_stats = job.run_stats(aggs=aggregations,
+                                price_config=price_settings,
+                                last=7)
+
+    since30 = job.run_df(price_config=price_settings, since_days=30)
+    if not since30.empty:
+        time_stats = (since30
+                      .groupby(get_time_grouper('start_time'))
+                      .agg({'run_id': 'count',
+                            'dbu': 'sum',
+                            'duration': 'median'})
+                      .reindex(get_time_index(30), fill_value=0))
+        time_stats['ts'] = time_stats.index.format()
+    else:
+        time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
+                      .reindex(get_time_index(30), fill_value=0))
+
+    return render_template('job.html',
+                           job=job,
+                           price_settings=price_settings,
+                           last7_stats=last7_stats,
+                           time_stats=time_stats.to_dict("records"))
+
+
+@app.route('/jobs')
+def view_jobs():
+    session = create_session()
+    jobs = session.query(Job).all()
+    level_info_data = get_level_info_data()
+
+    # PRICE CONFIG
+    price_settings = {setting['type']: setting['value']
+                      for setting in get_settings().get('prices')}
+
+    aggregations = {'cost': ['median'],
+                    'dbu': ['median'],
+                    'duration': ['median']}
+    extra_stats = {job.job_id: job.run_stats(aggs=aggregations,
+                                             price_config=price_settings,
+                                             last=7)
+                   for job in jobs}
+
+    run_df = concat_dfs(job.run_df(price_config=price_settings, since_days=30)
+                        for job in jobs)
+    if not run_df.empty:
+        time_stats = (run_df
+                      .groupby(get_time_grouper('start_time'))
+                      .agg({'run_id': 'count',
+                            'dbu': 'sum'})
+                      .reindex(get_time_index(30), fill_value=0))
+        time_stats['ts'] = time_stats.index.format()
+    else:
+        time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
+                      .reindex(get_time_index(30), fill_value=0))
+
+    return render_template('jobs.html',
+                           jobs=jobs,
+                           price_settings=price_settings,
+                           data=level_info_data,
+                           time_stats=time_stats.to_dict("records"),
+                           extra_stats=extra_stats)
 
 
 #  ======= SCRAPE RUNS =======
