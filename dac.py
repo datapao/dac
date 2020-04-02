@@ -432,6 +432,7 @@ def view_job(job_id):
     else:
         time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
                       .reindex(get_time_index(30), fill_value=0))
+        time_stats['ts'] = time_stats.index.format()
 
     return render_template('job.html',
                            job=job,
@@ -470,6 +471,7 @@ def view_jobs():
     else:
         time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
                       .reindex(get_time_index(30), fill_value=0))
+        time_stats['ts'] = time_stats.index.format()
 
     return render_template('jobs.html',
                            jobs=jobs,

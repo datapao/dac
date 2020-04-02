@@ -328,7 +328,8 @@ class Job(Base):
 
         df = self.run_df(price_config, last, since_days)
         if df.empty:
-            return pd.DataFrame({key: 0 for key in aggs})
+            return pd.DataFrame({column: {agg: 0 for agg in aggregation}
+                                 for column, aggregation in aggs.items()})
 
         return df.agg(aggs)
 
