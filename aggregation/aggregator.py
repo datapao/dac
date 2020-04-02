@@ -14,7 +14,7 @@ def get_time_grouper(col: str, freq='1D') -> pd.Grouper:
 
 def get_time_index(since_days=30):
     start = since(days=since_days)
-    end = datetime.today()
+    end = datetime.today() + timedelta(days=1)
     return pd.date_range(start, end, freq="1D", normalize=True)
 
 

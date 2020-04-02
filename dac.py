@@ -427,11 +427,12 @@ def view_job(job_id):
                       .agg({'run_id': 'count',
                             'dbu': 'sum',
                             'duration': 'median'})
-                      .reindex(get_time_index(30), fill_value=0))
+                      .fillna(0.)
+                      .reindex(get_time_index(30), fill_value=0.))
         time_stats['ts'] = time_stats.index.format()
     else:
         time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
-                      .reindex(get_time_index(30), fill_value=0))
+                      .reindex(get_time_index(30), fill_value=0.))
         time_stats['ts'] = time_stats.index.format()
 
     return render_template('job.html',
@@ -467,6 +468,7 @@ def view_jobs():
                       .agg({'run_id': 'count',
                             'dbu': 'sum',
                             'duration': 'sum'})
+                      .fillna(0.)
                       .reindex(get_time_index(30), fill_value=0))
         time_stats['ts'] = time_stats.index.format()
     else:
