@@ -465,7 +465,8 @@ def view_jobs():
         time_stats = (run_df
                       .groupby(get_time_grouper('start_time'))
                       .agg({'run_id': 'count',
-                            'dbu': 'sum'})
+                            'dbu': 'sum',
+                            'duration': 'sum'})
                       .reindex(get_time_index(30), fill_value=0))
         time_stats['ts'] = time_stats.index.format()
     else:

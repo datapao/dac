@@ -4,7 +4,7 @@
 
 <h1 class="title">Job {{ job.name }}</h1>
 <div class="columns">
-    <div class="column">
+    <div class="column is-one-fourth">
         <table class="table">
             <tr>
                 <th>ID</th>
@@ -32,7 +32,7 @@
             </tr>
         </table>
     </div>
-    <div class="column">
+    <div class="column is-one-fourth">
         <table class="table">
             <tr>
                 <th>Number of runs</th>
@@ -46,57 +46,60 @@
                 <th>Total cost</th>
                 <td>${{ job.cost(price_settings) | round(2, 'common') }}</td>
             </tr>
+        </table>
+    </div>
+    <div class="column is-one-fourth">
+        <table class="table">
             <tr>
-                <table class="table">
-                    <tr>
-                        <th colspan="4">Runtime (last 7 runs, hours)</th>
-                    </tr>
-                    <tr>
-                        <th>min</th>
-                        <th>median</th>
-                        <th>max</th>
-                        <th>total</th>
-                    </tr>
-                    <tr>
-                        <td>{{ last7_stats['duration']['min'] | round(2, 'common') }}</td>
-                        <td>{{ last7_stats['duration']['median'] | round(2, 'common') }}</td>
-                        <td>{{ last7_stats['duration']['max'] | round(2, 'common') }}</td>
-                        <td>{{ last7_stats['duration']['sum'] | round(2, 'common') }}</td>
-                    </tr>
-                </table>
+                <th colspan="4">Runtime (last 7 runs, hours)</th>
             </tr>
             <tr>
-                <table class="table">
-                    <tr>
-                        <th colspan="4">Cost (last 7 runs, USD)</th>
-                    </tr>
-                    <tr>
-                        <th>min</th>
-                        <th>median</th>
-                        <th>max</th>
-                        <th>total</th>
-                    </tr>
-                    <tr>
-                        <td>{{ last7_stats['cost']['min']  | round(2, 'common') }}</td>
-                        <td>{{ last7_stats['cost']['median'] | round(2, 'common') }}</td>
-                        <td>{{ last7_stats['cost']['max'] | round(2, 'common') }}</td>
-                        <td>{{ last7_stats['cost']['sum'] | round(2, 'common') }}</td>
-                    </tr>
-                </table>
+                <th>min</th>
+                <th>median</th>
+                <th>max</th>
+                <th>total</th>
+            </tr>
+            <tr>
+                <td>{{ last7_stats['duration']['min'] | round(2, 'common') }}h</td>
+                <td>{{ last7_stats['duration']['median'] | round(2, 'common') }}h</td>
+                <td>{{ last7_stats['duration']['max'] | round(2, 'common') }}h</td>
+                <td>{{ last7_stats['duration']['sum'] | round(2, 'common') }}h</td>
+            </tr>
+        </table>
+    </div>
+    <div class="column is-one-fourth">
+        <table class="table">
+            <tr>
+                <th colspan="4">Cost (last 7 runs, USD)</th>
+            </tr>
+            <tr>
+                <th>min</th>
+                <th>median</th>
+                <th>max</th>
+                <th>total</th>
+            </tr>
+            <tr>
+                <td>${{ last7_stats['cost']['min']  | round(2, 'common') }}</td>
+                <td>${{ last7_stats['cost']['median'] | round(2, 'common') }}</td>
+                <td>${{ last7_stats['cost']['max'] | round(2, 'common') }}</td>
+                <td>${{ last7_stats['cost']['sum'] | round(2, 'common') }}</td>
             </tr>
         </table>
     </div>
 </div>
 
 <div class="columns">
-    <div class="column is-one-third">
+    <div class="column is-three-fifths is-offset-one-fifth">
+        <canvas id="chart-dbu"></canvas>
+    </div>
+</div>
+
+<div class="columns">
+    <div class="column is-half">
         <canvas id="chart-count"></canvas>
     </div>
-    <div class="column is-one-third">
+    <div class="column is-half">
         <canvas id="chart-duration"></canvas>
-    </div>
-    <div class="column is-one-third">
-        <canvas id="chart-dbu"></canvas>
     </div>
 </div>
 
@@ -142,9 +145,9 @@
     dbus  = time_stats.map(({dbu}) => dbu);
     labels = time_stats.map(({ts}) => ts);
 
+    chart('chart-dbu', false, 'Median DBU usage', 'line', true, labels, dbus);
     chart('chart-count', false, 'Number of runs', 'bar', true, labels, counts);
     chart('chart-duration', false, 'Median runtime (hours)', 'line', true, labels, runtimes);
-    chart('chart-dbu', false, 'Runtime (hours)', 'line', true, labels, dbus);
 
     paginator({
         table: document.getElementById("runs-table").getElementsByTagName("table")[0],

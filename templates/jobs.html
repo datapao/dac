@@ -6,11 +6,17 @@
 
 
 <div class="columns">
+    <div class="column is-three-fifths is-offset-one-fifth">
+        <canvas id="chart-dbu"></canvas>
+    </div>
+</div>
+
+<div class="columns">
     <div class="column is-half">
         <canvas id="chart-count"></canvas>
     </div>
     <div class="column is-half">
-        <canvas id="chart-dbu"></canvas>
+        <canvas id="chart-duration"></canvas>
     </div>
 </div>
 
@@ -57,10 +63,12 @@
 
     counts = time_stats.map(({run_id}) => run_id);
     dbus  = time_stats.map(({dbu}) => dbu);
+    runtimes = time_stats.map(({duration}) => duration);
     labels = time_stats.map(({ts}) => ts);
 
+    chart('chart-dbu', false, 'DBUs', 'line', true, labels, dbus);
     chart('chart-count', false, 'Number of runs', 'bar', true, labels, counts);
-    chart('chart-dbu', false, 'Runtime (hours)', 'line', true, labels, dbus);
+    chart('chart-duration', false, 'Runtime (hours)', 'line', true, labels, runtimes);
 
     paginator({
         table: document.getElementById("jobs-table").getElementsByTagName("table")[0],
