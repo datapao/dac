@@ -7,8 +7,7 @@ from datetime import timedelta
 
 import pandas as pd
 
-from db import engine_url
-from db import Base, Cluster, Event
+from db import Cluster, Event
 
 
 log = logging.getLogger("dac-parser")
@@ -56,7 +55,8 @@ class EventParser:
         "UPSIZE_COMPLETED",
         # Indicates that some nodes were lost from the cluster.
         "NODES_LOST",
-        # Indicates that the driver is healthy and the cluster is ready for use.
+        # Indicates that the driver is healthy and
+        # the cluster is ready for use.
         "DRIVER_HEALTHY",
         # Indicates that the driver is unavailable.
         "DRIVER_UNAVAILABLE",
@@ -125,7 +125,7 @@ class EventParser:
 
         # CREATED / EDITED event only
         attributes = details.get('attributes', {})
-        cluster_name = attributes.get('cluster_name')
+        # cluster_name = attributes.get('cluster_name')
         driver_type = attributes.get('driver_node_type_id')
         worker_type = attributes.get('node_type_id')
 

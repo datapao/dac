@@ -55,7 +55,8 @@ def to_time(t):
     return None
 
 
-def scrape_cluster(workspace, cluster_dict, instance_types, session, api, result):
+def scrape_cluster(workspace, cluster_dict, instance_types,
+                   session, api, result):
     log.debug(f"Scraping cluster: {cluster_dict['cluster_name']} "
               f"({cluster_dict['state']})")
     cluster = Cluster(
@@ -274,7 +275,8 @@ def scrape_workspace(workspace, session, instance_types):
     log.info(f"Started scraping clusters in workspace {workspace.name}.")
     clusters = query_paginated(api.cluster.list_clusters, {}, 'clusters')
     for cluster in clusters:
-        scrape_cluster(workspace, cluster, instance_types, session, api, result)
+        scrape_cluster(workspace, cluster, instance_types,
+                       session, api, result)
     log.info(f"Finished scraping clusters in workspace {workspace.name}.")
 
     # JOBS

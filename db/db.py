@@ -294,7 +294,26 @@ class Job(Base):
                            back_populates='job',
                            order_by="JobRun.start_time")
 
-    def runs(self, last=None, since_days=None):
+    def runs(self, as_df=False, price_config=None, last=None, since_days=None):
+        """Returns the job's run.
+
+        Parameters:
+        -----------
+        - as_df : boolean (default: False)
+            Convert the runs to pandas dataframe
+        - price_config : dict (default: None)
+            Price config used to compute cluster cost
+        - last : int (default: None)
+            Filters the last N results (no filtering if set to None)
+        - since_days : int (default: None)
+            Filters to last N days (no filtering if set to None)
+
+        Returns:
+        --------
+        runs : list of JobRun objects or pd.DataFrame
+            The job's runs as list of sqlalchemy objects
+            or as a pandas DataFrame
+        """
         runs = self.jobruns
 
         if since_days is not None:
@@ -302,6 +321,9 @@ class Job(Base):
 
         if last is not None:
             runs = runs[-last:]
+
+        if as_df:
+            runs = pd.DataFrame([run.to_dict(price_config) for run in runs])
 
         return runs
 
@@ -317,25 +339,6 @@ class Job(Base):
     def cost(self, price_config, last=None, since_days=None):
         return sum([run.cost(price_config)
                     for run in self.runs(last, since_days)])
-
-    def run_df(self, price_config=None, last=None, since_days=None):
-        return pd.DataFrame([run.to_dict(price_config)
-                             for run in self.runs(last, since_days)])
-
-    def run_stats(self, aggs, price_config=None, last=None, since_days=None):
-        if 'cost' in aggs and price_config is None:
-            raise ValueError("Couldn't compute cost without price config!")
-
-        df = self.run_df(price_config, last, since_days)
-        if df.empty:
-            return pd.DataFrame({column: {agg: 0 for agg in aggregation}
-                                 for column, aggregation in aggs.items()})
-
-        return df.agg(aggs)
-
-    def state_df(self, last=None, since_days=None):
-        return pd.concat(run.cluster.state_df()
-                         for run in self.runs(last, since_days))
 
 
 class JobRun(Base):

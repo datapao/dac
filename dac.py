@@ -416,11 +416,14 @@ def view_job(job_id):
 
     aggregations = {'duration': ['min', 'median', 'max', 'sum'],
                     'cost': ['min', 'median', 'max', 'sum']}
-    last7_stats = job.run_stats(aggs=aggregations,
-                                price_config=price_settings,
-                                last=7)
+    last7_stats = (job
+                   .runs(as_df=True, price_config=price_settings, last=7)
+                   .agg(aggregations))
+    if last7_stats.empty:
+        last7_stats = pd.DataFrame({column: {agg: 0 for agg in aggregation}
+                                    for column, aggregation in aggregations.items()})
 
-    since30 = job.run_df(price_config=price_settings, since_days=30)
+    since30 = job.runs(as_df=True, price_config=price_settings, since_days=30)
     if not since30.empty:
         time_stats = (since30
                       .groupby(get_time_grouper('start_time'))
@@ -455,12 +458,15 @@ def view_jobs():
     aggregations = {'cost': ['median'],
                     'dbu': ['median'],
                     'duration': ['median']}
-    extra_stats = {job.job_id: job.run_stats(aggs=aggregations,
-                                             price_config=price_settings,
-                                             last=7)
+    extra_stats = {job.job_id: job.runs(as_df=True,
+                                        price_config=price_settings,
+                                        last=7).agg(aggregations)
                    for job in jobs}
+    if extra_stats.empty:
+        extra_stats = pd.DataFrame({column: {agg: 0 for agg in aggregation}
+                                    for column, aggregation in aggregations.items()})
 
-    run_df = concat_dfs(job.run_df(price_config=price_settings, since_days=30)
+    run_df = concat_dfs(job.runs(as_df=True, price_config=price_settings, since_days=30)
                         for job in jobs)
     if not run_df.empty:
         time_stats = (run_df
