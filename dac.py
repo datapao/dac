@@ -458,13 +458,16 @@ def view_jobs():
     aggregations = {'cost': ['median'],
                     'dbu': ['median'],
                     'duration': ['median']}
-    extra_stats = {job.job_id: job.runs(as_df=True,
-                                        price_config=price_settings,
-                                        last=7).agg(aggregations)
-                   for job in jobs}
-    if extra_stats.empty:
-        extra_stats = pd.DataFrame({column: {agg: 0 for agg in aggregation}
-                                    for column, aggregation in aggregations.items()})
+
+    extra_stats = {}
+    for job in jobs:
+        aggregated = (job
+                      .runs(as_df=True, price_config=price_settings, last=7)
+                      .agg(aggregations))
+        if aggregated.empty:
+            aggregated = pd.DataFrame({column: {agg: 0 for agg in aggregation}
+                                       for column, aggregation in aggregations.items()})
+        extra_stats[job.job_id] = aggregated
 
     run_df = concat_dfs(job.runs(as_df=True, price_config=price_settings, since_days=30)
                         for job in jobs)
