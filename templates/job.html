@@ -1,0 +1,161 @@
+{% extends "index.html" %}
+{% block content %}
+
+
+<h1 class="title">Job {{ job.name }}</h1>
+<div class="columns">
+    <div class="column is-one-fourth">
+        <table class="table">
+            <tr>
+                <th>ID</th>
+                <td>{{ job.job_id }}</td>
+            </tr>
+            <tr>
+                <th>Name</th>
+                <td>{{ job.name }}</td>
+            </tr>
+            <tr>
+                <th>Author</th>
+                <td>
+                    <a href={{ url_for("view_user", username=job.creator_user_name) }}>
+                        {{ job.creator_user_name }}
+                    </a>
+                </td>
+            </tr>
+            <tr>
+                <th>Workspace</th>
+                <td>
+                    <a href={{ url_for("view_workspace", workspace_id=job.workspace_id) }}>
+                        {{ job.workspace_id }}
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="column is-one-fourth">
+        <table class="table">
+            <tr>
+                <th>Number of runs</th>
+                <td>{{ job.num_runs() }}</td>
+            </tr>
+            <tr>
+                <th>Total runtime</th>
+                <td>{{ job.duration() | round(2, 'common') }} hours</td>
+            </tr>
+            <tr>
+                <th>Total cost</th>
+                <td>${{ job.cost(price_settings) | round(2, 'common') }}</td>
+            </tr>
+        </table>
+    </div>
+    <div class="column is-one-fourth">
+        <table class="table">
+            <tr>
+                <th colspan="4">Runtime (last 7 runs, hours)</th>
+            </tr>
+            <tr>
+                <th>min</th>
+                <th>median</th>
+                <th>max</th>
+                <th>total</th>
+            </tr>
+            <tr>
+                <td>{{ last7_stats['duration']['min'] | round(2, 'common') }}h</td>
+                <td>{{ last7_stats['duration']['median'] | round(2, 'common') }}h</td>
+                <td>{{ last7_stats['duration']['max'] | round(2, 'common') }}h</td>
+                <td>{{ last7_stats['duration']['sum'] | round(2, 'common') }}h</td>
+            </tr>
+        </table>
+    </div>
+    <div class="column is-one-fourth">
+        <table class="table">
+            <tr>
+                <th colspan="4">Cost (last 7 runs, USD)</th>
+            </tr>
+            <tr>
+                <th>min</th>
+                <th>median</th>
+                <th>max</th>
+                <th>total</th>
+            </tr>
+            <tr>
+                <td>${{ last7_stats['cost']['min']  | round(2, 'common') }}</td>
+                <td>${{ last7_stats['cost']['median'] | round(2, 'common') }}</td>
+                <td>${{ last7_stats['cost']['max'] | round(2, 'common') }}</td>
+                <td>${{ last7_stats['cost']['sum'] | round(2, 'common') }}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<div class="columns">
+    <div class="column is-three-fifths is-offset-one-fifth">
+        <canvas id="chart-dbu"></canvas>
+    </div>
+</div>
+
+<div class="columns">
+    <div class="column is-half">
+        <canvas id="chart-count"></canvas>
+    </div>
+    <div class="column is-half">
+        <canvas id="chart-duration"></canvas>
+    </div>
+</div>
+
+<h3 class="title is-3">Runs</h3>
+<section class="section">
+    <div id="runs-table">
+        <table class="table is-hoverable is-fullwidth">
+            <thead>
+                <tr>
+                    <td>Run ID</td>
+                    <td>Cluster ID</td>
+                    <td>Run Name</td>
+                    <td>Start time</td>
+                    <td>Duration</td>
+                    <td>DBU</td>
+                    <td>Cost</td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in job.runs() %}
+                <tr>
+                    <td>{{ run.run_id }}</td>
+                    <td><a href="{{ url_for("view_cluster", cluster_id=run.cluster_instance_id) }}">{{ run.cluster_instance_id }}</a></td>
+                    <td>{{ run.run_name }}</td>
+                    <td>{{ run.start_time }}</td>
+                    <td>{{ run.duration() | round(2, 'common') }}h</td>
+                    <td>{{ run.dbu() | round(2, 'common') }} DBU</td>
+                    <td>${{ run.cost(price_settings) | round(2, 'common') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="runs-box" class="box"></div>
+    </div>
+</section>
+
+<script>
+
+    var time_stats = JSON.parse('{{ time_stats | tojson | safe}}');
+
+    counts = time_stats.map(({run_id}) => run_id);
+    runtimes = time_stats.map(({duration}) => duration);
+    dbus  = time_stats.map(({dbu}) => dbu);
+    labels = time_stats.map(({ts}) => ts);
+
+    chart('chart-dbu', false, 'Median DBU usage', 'line', true, labels, dbus);
+    chart('chart-count', false, 'Number of runs', 'bar', true, labels, counts);
+    chart('chart-duration', false, 'Median runtime (hours)', 'line', true, labels, runtimes);
+
+    paginator({
+        table: document.getElementById("runs-table").getElementsByTagName("table")[0],
+        box: document.getElementById("runs-box"),
+        active_class: "color_page"
+    });
+
+
+</script>
+
+{% endblock %}

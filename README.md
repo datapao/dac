@@ -25,16 +25,10 @@ _configs/config.json_
             "token": "[token]"
           }, ...
     ],
-    "prices": [
-        {
-          "type": "interactive",
-          "value": 1.0
-          },
-        {
-          "type": "job",
-          "value": 1.0
-        }
-    ],
+    "prices": {
+        "interactive": 1.0,
+        "job": 1.0
+    },
     "thresholds": [
     ],
     "scraper": {

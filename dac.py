@@ -3,11 +3,11 @@ import logging
 import json
 import os
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 
-from flask import Flask, render_template, flash
+from flask import Flask, render_template
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
 
@@ -15,9 +15,8 @@ from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, get_running_jobs
 from aggregation import get_last_7_days_dbu, aggregate_for_entity
 from aggregation import aggregate_by_types
-from db import engine_url, create_db, Base
-from db import Workspace, Cluster, JobRun, User, ScraperRun
-from scraping import scrape, start_scheduled_scraping
+from db import engine_url, Base
+from db import Workspace, Cluster, Job, JobRun, User, ScraperRun
 
 
 logformat = "%(asctime)-15s %(name)-12s %(levelname)-8s %(message)s"
@@ -57,13 +56,32 @@ def get_settings(path=None):
     return settings
 
 
+@functools.lru_cache(maxsize=None)
+def get_price_settings(path=None):
+    settings = get_settings(path)
+    price = settings.get('prices')
+    if isinstance(price, list):
+        log.warning('Price config is depricated. Please refer to the sample '
+                    'config file (configs/config.json.default).')
+        price_config = {setting['type']: setting['value']
+                        for setting in price}
+
+    elif isinstance(price, dict):
+        price_config = price
+
+    else:
+        log.error('Price config is invalid. Falling back to default value '
+                  '(interactive: 1, job: 1)')
+        price_config = {'interactive': 1, 'job': 1}
+
+    return price_config
+
+
 def get_level_info_data():
     session = create_session()
     workspaces = session.query(Workspace)
 
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
     interactive_dbu_price = price_settings['interactive']
     job_dbu_price = price_settings['job']
 
@@ -128,12 +146,8 @@ def view_workspace(workspace_id):
                  .filter(Workspace.id == workspace_id)
                  .one())
     states = workspace.state_df()
-
     numbjobs_dict = get_running_jobs(workspace.jobruns)
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     if not states.empty:
         results = aggregate_by_types(states, aggregate_for_entity)
@@ -149,7 +163,7 @@ def view_workspace(workspace_id):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        # We aren't sure if we have both interactive and job
+        # We aren't sure if we have both interactive and job
         present_key = list(cost_summary_dict.keys())[0]
         cost_summary_dict = {key: sum([cost_summary_dict[type][key]
                                        for type in results.keys()])
@@ -197,10 +211,7 @@ def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
     level_info_data = get_level_info_data()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     return render_template('workspaces.html',
                            workspaces=workspaces,
@@ -218,10 +229,7 @@ def view_cluster(cluster_id):
                .one())
     states = cluster.state_df()
     cluster_type = cluster.cluster_type()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     cost_summary, time_stats = aggregate_for_entity(states)
     cost_summary = cost_summary.to_dict()
@@ -243,10 +251,7 @@ def view_clusters():
     clusters = session.query(Cluster).all()
     states = concat_dfs(cluster.state_df() for cluster in clusters)
     level_info_data = get_level_info_data()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     if not states.empty:
         results = aggregate_by_types(states, aggregate_for_entity)
@@ -316,10 +321,7 @@ def view_user(username):
             .to_dict('records')
         )
 
-        # PRICE CONFIG
-        price_settings = {setting['type']: setting['value']
-                          for setting in get_settings().get('prices')}
-
+        price_settings = get_price_settings()
         results = aggregate_by_types(states, aggregate_for_entity)
         time_stats_dict = {}
         cost_summary_dict = {}
@@ -333,7 +335,7 @@ def view_user(username):
             cost_summary['weekly_cost'] = weekly_cost
             cost_summary_dict[key] = cost_summary
 
-        # We aren't sure if we have both interactive and job
+        # We aren't sure if we have both interactive and job
         present_key = list(cost_summary_dict.keys())[0]
         cost_summary_dict = {key: sum([cost_summary_dict[type][key]
                                        for type in results.keys()])
@@ -400,6 +402,92 @@ def view_users():
                            users=users,
                            active_users=active_users.to_dict('records'),
                            data=level_info_data)
+
+
+#  ======= JOBS =======
+@app.route('/jobs/<string:job_id>')
+def view_job(job_id):
+    session = create_session()
+    job = (session
+           .query(Job)
+           .filter(Job.job_id == job_id)
+           .one())
+    price_settings = get_price_settings()
+
+    aggregations = {'duration': ['min', 'median', 'max', 'sum'],
+                    'cost': ['min', 'median', 'max', 'sum']}
+    last7_stats = (job
+                   .runs(as_df=True, price_config=price_settings, last=7)
+                   .agg(aggregations))
+    if last7_stats.empty:
+        last7_stats = pd.DataFrame({column: {agg: 0 for agg in aggregation}
+                                    for column, aggregation in aggregations.items()})
+
+    since30 = job.runs(as_df=True, price_config=price_settings, since_days=30)
+    if not since30.empty:
+        time_stats = (since30
+                      .groupby(get_time_grouper('start_time'))
+                      .agg({'run_id': 'count',
+                            'dbu': 'sum',
+                            'duration': 'median'})
+                      .fillna(0.)
+                      .reindex(get_time_index(30), fill_value=0.))
+        time_stats['ts'] = time_stats.index.format()
+    else:
+        time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
+                      .reindex(get_time_index(30), fill_value=0.))
+        time_stats['ts'] = time_stats.index.format()
+
+    return render_template('job.html',
+                           job=job,
+                           price_settings=price_settings,
+                           last7_stats=last7_stats,
+                           time_stats=time_stats.to_dict("records"))
+
+
+@app.route('/jobs')
+def view_jobs():
+    session = create_session()
+    jobs = session.query(Job).all()
+    level_info_data = get_level_info_data()
+    price_settings = get_price_settings()
+
+    aggregations = {'cost': ['median'],
+                    'dbu': ['median'],
+                    'duration': ['median']}
+
+    extra_stats = {}
+    for job in jobs:
+        aggregated = (job
+                      .runs(as_df=True, price_config=price_settings, last=7)
+                      .agg(aggregations))
+        if aggregated.empty:
+            aggregated = pd.DataFrame({column: {agg: 0 for agg in aggregation}
+                                       for column, aggregation in aggregations.items()})
+        extra_stats[job.job_id] = aggregated
+
+    run_df = concat_dfs(job.runs(as_df=True, price_config=price_settings, since_days=30)
+                        for job in jobs)
+    if not run_df.empty:
+        time_stats = (run_df
+                      .groupby(get_time_grouper('start_time'))
+                      .agg({'run_id': 'count',
+                            'dbu': 'sum',
+                            'duration': 'sum'})
+                      .fillna(0.)
+                      .reindex(get_time_index(30), fill_value=0))
+        time_stats['ts'] = time_stats.index.format()
+    else:
+        time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
+                      .reindex(get_time_index(30), fill_value=0))
+        time_stats['ts'] = time_stats.index.format()
+
+    return render_template('jobs.html',
+                           jobs=jobs,
+                           price_settings=price_settings,
+                           data=level_info_data,
+                           time_stats=time_stats.to_dict("records"),
+                           extra_stats=extra_stats)
 
 
 #  ======= SCRAPE RUNS =======

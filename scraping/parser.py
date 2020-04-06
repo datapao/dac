@@ -7,8 +7,7 @@ from datetime import timedelta
 
 import pandas as pd
 
-from db import engine_url
-from db import Base, Cluster, Event
+from db import Cluster, Event
 
 
 log = logging.getLogger("dac-parser")
@@ -56,7 +55,8 @@ class EventParser:
         "UPSIZE_COMPLETED",
         # Indicates that some nodes were lost from the cluster.
         "NODES_LOST",
-        # Indicates that the driver is healthy and the cluster is ready for use.
+        # Indicates that the driver is healthy and
+        # the cluster is ready for use.
         "DRIVER_HEALTHY",
         # Indicates that the driver is unavailable.
         "DRIVER_UNAVAILABLE",
@@ -85,11 +85,15 @@ class EventParser:
         'STOPPED'
     ]
     transitions = {
+        # TODO: decide what is the correct state here
+        "PENDING":  'RUNNING',
         "CREATING": 'RUNNING',
         "STARTING": 'RUNNING',
         "RESTARTING": 'RUNNING',
         "TERMINATING": 'STOPPED',
+        "TERMINATED": 'STOPPED',
         "RUNNING": 'RUNNING',
+        "UNKONWN": 'UNKNOWN',
     }
     instance_type_regex = re.compile(r'(([a-z]\d[a-z]?.[\d]*[x]?large)|'
                                      r'((Standard_|Premium_)'
@@ -121,7 +125,7 @@ class EventParser:
 
         # CREATED / EDITED event only
         attributes = details.get('attributes', {})
-        cluster_name = attributes.get('cluster_name')
+        # cluster_name = attributes.get('cluster_name')
         driver_type = attributes.get('driver_node_type_id')
         worker_type = attributes.get('node_type_id')
 
@@ -238,8 +242,9 @@ class EventParser:
                       df: pd.DataFrame,
                       cluster_type: str = 'analysis') -> pd.Series:
         if cluster_type not in ['light', 'job', 'analysis']:
-            raise ValueError(f'Unrecognized cluster type {cluster_type} '
-                             f'during DBU computation.')
+            log.warning(f'Unrecognized cluster type {cluster_type} '
+                        f'during DBU computation.')
+            return 0
 
         clusters = df[['driver_type', 'worker_type', 'num_workers']].copy()
         clusters['driver_type'] = self.clean_instance_col(clusters.driver_type)
