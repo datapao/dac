@@ -1,9 +1,11 @@
 import datetime
 import functools
+import json
 import logging
+import re
 import threading
 import time
-import json
+import traceback
 
 import requests
 import pandas as pd
@@ -14,7 +16,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 from db import engine_url
 from db import Base, Cluster, Workspace, Event, Job, JobRun
-from db import User, UserWorkspace, ScraperRun, ClusterStates
+from db import User, UserWorkspace, ScraperRun, ClusterStates, ClusterType
 from scraping.parser import parse_events, query_instance_types
 
 
@@ -53,6 +55,120 @@ def to_time(t):
     if t is not None:
         return datetime.datetime.utcfromtimestamp(t / 1000)
     return None
+
+
+def scrape_aws_instance_types(regex, columns):
+    aws_url = "https://databricks.com/product/aws-pricing/instance-types"
+    aws = pd.read_html(aws_url)[0].drop(columns=[0])
+    aws.columns = columns
+    aws['type'] = aws.type.str.extract(regex)
+    return aws
+
+
+def scrape_azure_instance_types(regex):
+    column_mapping = {
+        'Instance': 'type',
+        'vCPU(s)': 'cpu',
+        'Ram': 'mem',
+        'Dbu Count': 'dbu_light'
+    }
+    azure_url = "https://azure.microsoft.com/en-us/pricing/details/databricks/"
+    azure_dfs = [df for df in pd.read_html(azure_url)
+                 if 'Dbu Count' in df.columns]
+    azure = (pd.concat(azure_dfs, sort=False)
+             [column_mapping.keys()]
+             .rename(columns=column_mapping)
+             .drop_duplicates()
+             .assign(dbu_job=lambda df: df['dbu_light'],
+                     dbu_analysis=lambda df: df['dbu_light']))
+    azure['type'] = 'Standard_' + azure.type.str.replace(' ', '_')
+    azure['type'] = azure.type.str.extract(regex)
+    # TODO: find an elegant solution to this hotfix:
+    # Azure site has some misspelled instance names:
+    # Standard_F4, F8, F16 instead of Standard_F4s, F8s, F16s
+    affected_rows = azure.type.str.match(r'Standard_F\d((?!_v\d).)*$')
+    azure.loc[affected_rows, 'type'] = azure.loc[affected_rows, 'type'] + 's'
+    return azure
+
+
+def scrape_instance_types():
+    regex = re.compile(r'(([a-z]\d[a-z]?.[\d]*[x]?large)|'
+                       r'((Standard_|Premium_)'
+                       r'[a-zA-Z]{1,2}\d+[a-zA-Z]?(_v\d*)?))')
+
+    columns = ['type', 'cpu', 'mem',
+               'dbu_light', 'dbu_job', 'dbu_analysis']
+
+    # AWS parse
+    try:
+        aws = scrape_aws_instance_types(regex, columns)
+    except Exception as e:
+        aws = pd.DataFrame(columns=columns)
+        log.exception(f'AWS instance type scraping failed with the following '
+                      f'Exception:\n{e}\nTraceback:\n{traceback.format_exc()}')
+
+    # AZURE parse
+    try:
+        azure = scrape_azure_instance_types(regex)
+    except Exception as e:
+        azure = pd.DataFrame(columns=columns)
+        log.exception(f'Azure instance type scraping '
+                      f'failed with the following Exception:\n{e}\n'
+                      f'Traceback:\n{traceback.format_exc()}')
+
+    # MERGE
+    df = pd.concat([aws, azure]).reset_index(drop=True)
+    df['scrape_time'] = datetime.datetime.today()
+
+    return df
+
+
+def upsert_instance_types(session: "Session") -> pd.DataFrame:
+    """Upserts instance types and returns latest data as a pandas DataFrame."""
+    log.debug('Instance type scraping started...')
+    today = datetime.datetime.today()
+    one_month = datetime.timedelta(days=30)
+    latest_instance_types = query_instance_types(session, as_df=False)
+
+    if latest_instance_types is None:
+        log.debug('Empty DB, scraping instance types...')
+        instance_types = scrape_instance_types()
+        for instance_type in instance_types.to_dict(orient='records'):
+            session.merge(ClusterType(**instance_type))
+        session.commit()
+        log.debug('Instance type scraping done.')
+        return instance_types
+    else:
+        log.debug('Existing records found in DB.')
+        latest_instance_types_df = query_instance_types(session, as_df=True)
+        latest_scrape_date = latest_instance_types_df.scrape_time.max()
+        if latest_scrape_date < today - one_month:
+            log.debug('Outdated DB, scraping instance types...')
+            instance_types = scrape_instance_types()
+            same_results = (
+                instance_types
+                .sort_values(by=['type', 'scrape_time'], ignore_index=True)
+                .drop(columns='scrape_time')
+                .equals(latest_instance_types_df
+                        .sort_values(by=['type', 'scrape_time'],
+                                     ignore_index=True)
+                        .drop(columns='scrape_time'))
+            )
+            if same_results:
+                log.debug('No updates found, updating timestamps...')
+                for instance_type in latest_instance_types:
+                    instance_type.scrape_time = today
+            else:
+                log.debug('New updates found, adding them to DB...')
+                for instance_type in instance_types.to_dict(orient='records'):
+                    session.merge(ClusterType(**instance_type))
+
+            log.debug('Instance type scraping done.')
+            session.commit()
+            return instance_types
+
+        log.debug('Instance type scraping done.')
+        return latest_instance_types_df
 
 
 def scrape_cluster(workspace, cluster_dict, instance_types,
@@ -333,7 +449,7 @@ def scrape(json_path):
     DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
     session = DBSession()
 
-    instance_types = query_instance_types()
+    instance_types = upsert_instance_types(session)
 
     scraping_results = []
     for workspace in get_workspaces(json_path):

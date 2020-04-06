@@ -66,9 +66,8 @@ class Cluster(Base):
     cluster_name = Column(String, nullable=False)
     state = Column(String, nullable=False)
     state_message = Column(String, nullable=False)
-    # TODO(gulyasm): This must be a foreign key and a seperate table
-    driver_type = Column(String)
-    worker_type = Column(String)
+    driver_type = Column(String, ForeignKey("cluster_types.type"))
+    worker_type = Column(String, ForeignKey("cluster_types.type"))
     num_workers = Column(Integer)
     autoscale_min_workers = Column(Integer)
     autoscale_max_workers = Column(Integer)
@@ -528,6 +527,23 @@ class ClusterStates(Base):
 
     def __repr__(self):
         return self.__str__()
+
+    def to_dict(self):
+        return {attr: getattr(self, attr) for attr in self.__attributes__}
+
+
+class ClusterType(Base):
+    __tablename__ = "cluster_types"
+    __attributes__ = ['scrape_time', 'type', 'cpu', 'mem',
+                      'dbu_light', 'dbu_job', 'dbu_analysis']
+
+    scrape_time = Column(DateTime, primary_key=True)
+    type = Column(String, primary_key=True)
+    cpu = Column(Integer)
+    mem = Column(Integer)
+    dbu_light = Column(Float)
+    dbu_job = Column(Float)
+    dbu_analysis = Column(Float)
 
     def to_dict(self):
         return {attr: getattr(self, attr) for attr in self.__attributes__}
