@@ -1,26 +1,20 @@
 {
-    "workspaces": [
-        {
-            "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
-            "id": "[workspace_id]",
-            "type": "[AZURE|AWS]",
-            "name": "[workspace_name]",
-            "token": "[token]"
-          }
-    ],
-    "prices": [
-        {
-          "type": "interactive",
-          "value": 1.0
-          },
-        {
-          "type": "job",
-          "value": 1.0
-        }
-    ],
-    "thresholds": [
-    ],
-    "scraper": {
-        "interval": 270
-    }
+	"workspaces": [
+		{
+			"url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
+			"id": "[workspace_id]",
+			"type": "[AZURE|AWS]",
+			"name": "[workspace_name]",
+			"token": "[token]"
+		}
+	],
+	"prices": {
+		"interactive": 1.0,
+		"job": 1.0
+	},
+	"thresholds": [
+	],
+	"scraper": {
+		"interval": 270
+	}
 }

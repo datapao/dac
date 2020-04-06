@@ -56,13 +56,32 @@ def get_settings(path=None):
     return settings
 
 
+@functools.lru_cache(maxsize=None)
+def get_price_settings(path=None):
+    settings = get_settings(path)
+    price = settings.get('prices')
+    if isinstance(price, list):
+        log.warning('Price config is depricated. Please refer to the sample '
+                    'config file (configs/config.json.default).')
+        price_config = {setting['type']: setting['value']
+                        for setting in price}
+
+    elif isinstance(price, dict):
+        price_config = price
+
+    else:
+        log.error('Price config is invalid. Falling back to default value '
+                  '(interactive: 1, job: 1)')
+        price_config = {'interactive': 1, 'job': 1}
+
+    return price_config
+
+
 def get_level_info_data():
     session = create_session()
     workspaces = session.query(Workspace)
 
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
     interactive_dbu_price = price_settings['interactive']
     job_dbu_price = price_settings['job']
 
@@ -127,12 +146,8 @@ def view_workspace(workspace_id):
                  .filter(Workspace.id == workspace_id)
                  .one())
     states = workspace.state_df()
-
     numbjobs_dict = get_running_jobs(workspace.jobruns)
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     if not states.empty:
         results = aggregate_by_types(states, aggregate_for_entity)
@@ -196,10 +211,7 @@ def view_workspaces():
     session = create_session()
     workspaces = session.query(Workspace).all()
     level_info_data = get_level_info_data()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     return render_template('workspaces.html',
                            workspaces=workspaces,
@@ -217,10 +229,7 @@ def view_cluster(cluster_id):
                .one())
     states = cluster.state_df()
     cluster_type = cluster.cluster_type()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     cost_summary, time_stats = aggregate_for_entity(states)
     cost_summary = cost_summary.to_dict()
@@ -242,10 +251,7 @@ def view_clusters():
     clusters = session.query(Cluster).all()
     states = concat_dfs(cluster.state_df() for cluster in clusters)
     level_info_data = get_level_info_data()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     if not states.empty:
         results = aggregate_by_types(states, aggregate_for_entity)
@@ -315,10 +321,7 @@ def view_user(username):
             .to_dict('records')
         )
 
-        # PRICE CONFIG
-        price_settings = {setting['type']: setting['value']
-                          for setting in get_settings().get('prices')}
-
+        price_settings = get_price_settings()
         results = aggregate_by_types(states, aggregate_for_entity)
         time_stats_dict = {}
         cost_summary_dict = {}
@@ -409,10 +412,7 @@ def view_job(job_id):
            .query(Job)
            .filter(Job.job_id == job_id)
            .one())
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     aggregations = {'duration': ['min', 'median', 'max', 'sum'],
                     'cost': ['min', 'median', 'max', 'sum']}
@@ -450,10 +450,7 @@ def view_jobs():
     session = create_session()
     jobs = session.query(Job).all()
     level_info_data = get_level_info_data()
-
-    # PRICE CONFIG
-    price_settings = {setting['type']: setting['value']
-                      for setting in get_settings().get('prices')}
+    price_settings = get_price_settings()
 
     aggregations = {'cost': ['median'],
                     'dbu': ['median'],
