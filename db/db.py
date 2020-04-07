@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, Integer, BigInteger, Float
 from sqlalchemy import DateTime, Boolean, JSON
+from sqlalchemy.schema import ForeignKeyConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -274,13 +275,13 @@ class Job(Base):
     __tablename__ = "jobs"
 
     job_id = Column(BigInteger, primary_key=True)
-    created_time = Column(DateTime, primary_key=True)
+    workspace_id = Column(String, ForeignKey("workspaces.id"), primary_key=True)
+    created_time = Column(DateTime, primary_key=False)  # still debating if necessary
     creator_user_name = Column(String, ForeignKey("users.username"),
                                nullable=True)
     name = Column(String, nullable=False)
     timeout_seconds = Column(Integer, nullable=False)
     email_notifications = Column(JSON, nullable=False)
-    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
     new_cluster = Column(JSON)
     existing_cluster_id = Column(String)
     schedule_quartz_cron_expression = Column(String)
@@ -291,7 +292,8 @@ class Job(Base):
 
     workspace = relationship(Workspace)
     jobruns = relationship("JobRun",
-                           back_populates='job',
+                           backref="job",
+                           foreign_keys="[JobRun.job_id, JobRun.workspace_id]",
                            order_by="JobRun.start_time")
 
     def runs(self, as_df=False, price_config=None, last=None, since_days=None):
@@ -346,8 +348,12 @@ class JobRun(Base):
     __attributes__ = ['job_id', 'run_id', 'workspace_id', 'cluster_instance_id',
                       'start_time', 'creator_user_name', 'run_name',
                       'duration', 'dbu']
+    __table_args__ = (
+        ForeignKeyConstraint(["job_id", "workspace_id"],
+                             ["jobs.job_id", 'jobs.workspace_id']),
+    )
 
-    job_id = Column(BigInteger, ForeignKey("jobs.job_id"), primary_key=True)
+    job_id = Column(BigInteger, primary_key=True)
     run_id = Column(BigInteger, primary_key=True)
     number_in_job = Column(Integer)
     original_attempt_run_id = Column(Integer)
@@ -372,7 +378,6 @@ class JobRun(Base):
     run_page_url = Column(String)
     run_type = Column(String, nullable=False)
 
-    job = relationship(Job, back_populates='jobruns')
     workspace = relationship(Workspace)
     cluster = relationship(Cluster)
 
