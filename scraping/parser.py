@@ -7,7 +7,9 @@ from datetime import timedelta
 
 import pandas as pd
 
-from db import Cluster, Event
+from sqlalchemy import func
+
+from db import Cluster, Event, ClusterType
 
 
 log = logging.getLogger("dac-parser")
@@ -250,7 +252,8 @@ class EventParser:
         clusters['driver_type'] = self.clean_instance_col(clusters.driver_type)
         clusters['worker_type'] = self.clean_instance_col(clusters.worker_type)
 
-        mapping = self.instance_type_map[['type', 'cpu', 'mem', cluster_type]]
+        mapping = (self.instance_type_map[['type', 'cpu', 'mem', f'dbu_{cluster_type}']]
+                   .rename(columns={f'dbu_{cluster_type}': cluster_type}))
 
         joined = (
             clusters
@@ -273,46 +276,26 @@ class EventParser:
 
 
 @functools.lru_cache(maxsize=None)
-def query_instance_types() -> pd.DataFrame:
-    # TODO: save locally and check if we can parse the actual page
-    regex = re.compile(r'(([a-z]\d[a-z]?.[\d]*[x]?large)|'
-                       r'((Standard_|Premium_)'
-                       r'[a-zA-Z]{1,2}\d+[a-zA-Z]?(_v\d*)?))')
+def query_instance_types(session, as_df=True) -> pd.DataFrame:
+    latest = (session
+              .query(func.max(ClusterType.scrape_time).label('scrape_time'))
+              .first()
+              .scrape_time)
 
-    # AWS parse
-    aws_url = "https://databricks.com/product/aws-pricing/instance-types"
-    aws = pd.read_html(aws_url)[0].drop(columns=[0])
-    aws.columns = ['type', 'cpu', 'mem', 'light', 'job', 'analysis']
-    aws['type'] = aws.type.str.extract(regex)
+    if latest is None:
+        return pd.DataFrame(columns=ClusterType.__attributes__) if as_df else None
 
-    # AZURE parse
-    column_mapping = {
-        'Instance': 'type',
-        'vCPU(s)': 'cpu',
-        'Ram': 'mem',
-        'Dbu Count': 'light'
-    }
-    azure_url = "https://azure.microsoft.com/en-us/pricing/details/databricks/"
-    azure_dfs = [df for df in pd.read_html(azure_url)
-                 if 'Dbu Count' in df.columns]
-    azure = (pd.concat(azure_dfs, sort=False)
-             [column_mapping.keys()]
-             .rename(columns=column_mapping)
-             .drop_duplicates()
-             .assign(job=lambda df: df['light'],
-                     analysis=lambda df: df['light']))
-    azure['type'] = 'Standard_' + azure.type.str.replace(' ', '_')
-    azure['type'] = azure.type.str.extract(regex)
-    # TODO: find an elegant solution to this hotfix:
-    # Azure site has some misspelled instance names:
-    # Standard_F4, F8, F16 instead of Standard_F4s, F8s, F16s
-    affected_rows = azure.type.str.match(r'Standard_F\d((?!_v\d).)*$')
-    azure.loc[affected_rows, 'type'] = azure.loc[affected_rows, 'type'] + 's'
+    instance_types = (
+        session
+        .query(ClusterType)
+        .filter(ClusterType.scrape_time == latest)
+    )
 
-    # MERGE
-    df = pd.concat([aws, azure]).reset_index(drop=True)
+    if as_df:
+        instance_types = pd.DataFrame(instance_type.to_dict()
+                                      for instance_type in instance_types)
 
-    return df
+    return instance_types
 
 
 def query_events(session):

@@ -108,6 +108,12 @@ def get_level_info_data():
     }
 
 
+# ======= MISSING =======
+@app.route('/missing/<string:type>/<string:id>')
+def view_missing(type, id):
+    return render_template('missing.html', type=type, id=id)
+
+
 # ======= DASHBOARD =======
 @app.route('/')
 def view_dashboard():
@@ -141,10 +147,15 @@ def view_dashboard():
 @app.route('/workspaces/<string:workspace_id>')
 def view_workspace(workspace_id):
     session = create_session()
-    workspace = (session
-                 .query(Workspace)
-                 .filter(Workspace.id == workspace_id)
-                 .one())
+    try:
+        workspace = (session
+                    .query(Workspace)
+                    .filter(Workspace.id == workspace_id)
+                    .one())
+    except Exception:
+        return render_template('missing.html',
+                               type="workspace",
+                               id=workspace_id)
     states = workspace.state_df()
     numbjobs_dict = get_running_jobs(workspace.jobruns)
     price_settings = get_price_settings()
@@ -223,10 +234,13 @@ def view_workspaces():
 @app.route('/clusters/<string:cluster_id>')
 def view_cluster(cluster_id):
     session = create_session()
-    cluster = (session
-               .query(Cluster)
-               .filter(Cluster.cluster_id == cluster_id)
-               .one())
+    try:
+        cluster = (session
+                   .query(Cluster)
+                   .filter(Cluster.cluster_id == cluster_id)
+                   .one())
+    except Exception:
+        return render_template('missing.html', type="cluster", id=cluster_id)
     states = cluster.state_df()
     cluster_type = cluster.cluster_type()
     price_settings = get_price_settings()
@@ -285,10 +299,13 @@ def view_clusters():
 @app.route('/users/<string:username>')
 def view_user(username):
     session = create_session()
-    user = (session
-            .query(User)
-            .filter(User.username == username)
-            .one())
+    try:
+        user = (session
+                .query(User)
+                .filter(User.username == username)
+                .one())
+    except Exception:
+        return render_template('missing.html', type="user", id=username)
     states = user.state_df()
     if not states.empty:
         workspaces = (
@@ -408,10 +425,13 @@ def view_users():
 @app.route('/jobs/<string:job_id>')
 def view_job(job_id):
     session = create_session()
-    job = (session
-           .query(Job)
-           .filter(Job.job_id == job_id)
-           .one())
+    try:
+        job = (session
+               .query(Job)
+               .filter(Job.job_id == job_id)
+               .one())
+    except Exception:
+        return render_template('missing.html', type="job", id=job_id)
     price_settings = get_price_settings()
 
     aggregations = {'duration': ['min', 'median', 'max', 'sum'],
