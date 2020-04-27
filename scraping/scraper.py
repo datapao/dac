@@ -257,6 +257,9 @@ def scrape_job_run(workspace, job_run_dict, session, result):
         number_in_job=job_run_dict["number_in_job"],
         original_attempt_run_id=job_run_dict["original_attempt_run_id"],
         cluster_spec=job_run_dict["cluster_spec"],
+        cluster_type_id=(job_run_dict["cluster_spec"]
+                         .get("new_cluster", {})
+                         .get("node_type_id")),
         workspace_id=workspace.id,
         cluster_instance_id=instance.get("cluster_id"),
         spark_context_id=instance.get("spark_context_id"),

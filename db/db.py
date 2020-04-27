@@ -1,3 +1,5 @@
+import logging
+
 from uuid import uuid4
 from datetime import datetime
 
@@ -11,6 +13,9 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 from aggregation import since
+
+
+log = logging.getLogger("dac-db")
 
 
 engine_url = 'sqlite:///dac.db'
@@ -114,7 +119,7 @@ class Cluster(Base):
 
     def dbu_per_hour(self):
         df = self.state_df()
-        return df.loc[df.state.isin(['RUNNING']), 'dbu'].iloc[-1]
+        return df.loc[df.state.isin(['RUNNING']), 'dbu'].iloc[-1] or 0.0
 
     def cluster_type(self):
         return 'job' if self.cluster_name.startswith('job') else 'interactive'
@@ -342,7 +347,8 @@ class Job(Base):
 
 class JobRun(Base):
     __tablename__ = "jobruns"
-    __attributes__ = ['job_id', 'run_id', 'workspace_id', 'cluster_instance_id',
+    __attributes__ = ['job_id', 'run_id', 'workspace_id',
+                      'cluster_instance_id', 'cluster_type_id',
                       'start_time', 'creator_user_name', 'run_name',
                       'duration', 'dbu']
 
@@ -353,6 +359,7 @@ class JobRun(Base):
     workspace_id = Column(String, ForeignKey("workspaces.id"),
                           primary_key=True)
     cluster_spec = Column(JSON, nullable=False)
+    cluster_type_id = Column(String, ForeignKey("cluster_types.type"))
     cluster_instance_id = Column(String, ForeignKey("clusters.cluster_id"),
                                  nullable=True)
     spark_context_id = Column(BigInteger)
@@ -374,6 +381,7 @@ class JobRun(Base):
     job = relationship(Job, back_populates='jobruns')
     workspace = relationship(Workspace)
     cluster = relationship(Cluster)
+    cluster_type = relationship("ClusterType")
 
     def start_date(self):
         return datetime.fromtimestamp(self.start_time)
@@ -386,9 +394,30 @@ class JobRun(Base):
         return hours
 
     def dbu(self):
+        if self.cluster is None:
+            log.warning("[JOBRUN DBU Calculation] Cluster no longer "
+                        "available, falling back to cluster specification.")
+            dbu_per_hour = self.cluster_type.dbu_job
+            if dbu_per_hour is None:
+                log.warning("[JOBRUN DBU Calculation] Instance type is "
+                            "missing, returning 0.")
+                return 0
+            return dbu_per_hour * self.duration()
+
         return self.cluster.dbu_per_hour() * self.duration()
 
     def cost(self, price_config):
+        if self.cluster is None:
+            log.warning("[JOBRUN Cost Calculation] Cluster no longer "
+                        "available, falling back to cluster specification.")
+            dbu_per_hour = self.cluster_type.dbu_job
+            if dbu_per_hour is None:
+                log.warning("[JOBRUN Cost Calculation] Instance type "
+                            "is missing, returning 0.")
+                return 0
+            price_per_hour = price_config['job']
+            return dbu_per_hour * price_per_hour * self.duration()
+
         return self.cluster.cost_per_hour(price_config) * self.duration()
 
     def to_dict(self, price_config=None):
