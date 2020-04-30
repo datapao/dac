@@ -57,9 +57,10 @@ def get_settings(path=None):
         with open(path, 'r') as config_file:
             settings = json.load(config_file)
     except Exception:
-        abort(404,
-              'Config file is missing. Upload one using by '
-              'posting to /config endpoint!')
+        abort(404, {'error': 'Missing',
+                    'type': 'config file',
+                    'message': 'Config file is missing. Upload one using by '
+                               'posting to /config endpoint!'})
 
     return settings
 
@@ -119,12 +120,17 @@ def get_level_info_data():
 # ======= MISSING =======
 @app.route('/missing/<string:type>/<string:id>')
 def view_missing(type, id):
-    return render_template('missing.html', type=type, id=id)
+    abort(404, {'error': 'Missing',
+                'type': type.capitalize(),
+                'message': f'{type.capitalize()} with {id} ID is not found.'})
 
 
 @app.errorhandler(404)
-def resource_not_found(e):
-    return view_missing('config', str(e))
+def view_error_page(error):
+    return render_template('error.html',
+                           error=error.description['error'],
+                           type=error.description['type'],
+                           message=error.description['message'])
 
 
 # ======= CONFIG =======
@@ -181,9 +187,8 @@ def view_workspace(workspace_id):
                     .filter(Workspace.id == workspace_id)
                     .one())
     except Exception:
-        return render_template('missing.html',
-                               type="workspace",
-                               id=workspace_id)
+        return view_missing(type="workspace",
+                            id=workspace_id)
     states = workspace.state_df()
     numbjobs_dict = get_running_jobs(workspace.jobruns)
     price_settings = get_price_settings()
@@ -268,7 +273,7 @@ def view_cluster(cluster_id):
                    .filter(Cluster.cluster_id == cluster_id)
                    .one())
     except Exception:
-        return render_template('missing.html', type="cluster", id=cluster_id)
+        return view_missing(type="cluster", id=cluster_id)
     states = cluster.state_df()
     cluster_type = cluster.cluster_type()
     price_settings = get_price_settings()
@@ -333,7 +338,7 @@ def view_user(username):
                 .filter(User.username == username)
                 .one())
     except Exception:
-        return render_template('missing.html', type="user", id=username)
+        return view_missing(type="user", id=username)
     states = user.state_df()
     if not states.empty:
         workspaces = (
@@ -459,7 +464,7 @@ def view_job(job_id):
                .filter(Job.job_id == job_id)
                .one())
     except Exception:
-        return render_template('missing.html', type="job", id=job_id)
+        return view_missing(type="job", id=job_id)
     price_settings = get_price_settings()
 
     aggregations = {'duration': ['min', 'median', 'max', 'sum'],
