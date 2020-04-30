@@ -7,9 +7,11 @@ from datetime import datetime
 
 import pandas as pd
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request, Response, abort
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker, scoped_session
+
+import configs
 
 from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, get_running_jobs
@@ -48,11 +50,17 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 @functools.lru_cache(maxsize=None)
 def get_settings(path=None):
-    if path is None:
-        path = app.config.get('CONFIG_PATH')
+    try:
+        if path is None:
+            path = app.config.get('CONFIG_PATH')
 
-    with open(path, 'r') as config_file:
-        settings = json.load(config_file)
+        with open(path, 'r') as config_file:
+            settings = json.load(config_file)
+    except Exception:
+        abort(404,
+              'Config file is missing. Upload one using by '
+              'posting to /config endpoint!')
+
     return settings
 
 
@@ -112,6 +120,26 @@ def get_level_info_data():
 @app.route('/missing/<string:type>/<string:id>')
 def view_missing(type, id):
     return render_template('missing.html', type=type, id=id)
+
+
+@app.errorhandler(404)
+def resource_not_found(e):
+    return view_missing('config', str(e))
+
+
+# ======= CONFIG =======
+@app.route('/config', methods=['POST'])
+def set_config():
+    try:
+        config = configs.from_request(request)
+        result = configs.save(config, os.environ.get('DAC_CONFIG_PATH'))
+    except Exception as e:
+        return Response(str(e))
+
+    get_settings.cache_clear()
+    get_price_settings.cache_clear()
+
+    return Response(json.dumps(result))
 
 
 # ======= DASHBOARD =======
@@ -527,18 +555,6 @@ def view_alerts():
 
 
 #  ======= SETTINGS =======
-def format_workspace_configs(configs):
-    if not isinstance(configs, list):
-        configs = [configs]
-
-    formatted = []
-    for config in configs:
-        key_value = '\n\t'.join([f"'{k}': '{v}'" for k, v in config.items()])
-        formatted.append(f'{{\n\t{key_value}\n}}')
-
-    return ',\n'.join(formatted)
-
-
 @app.route('/settings')
 def view_settings():
     settings = get_settings()
