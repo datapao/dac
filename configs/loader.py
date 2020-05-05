@@ -8,6 +8,10 @@ def contains(keys, dictionary):
     return True
 
 
+def missing(keys, dictionary):
+    return [key for key in keys if key not in dictionary]
+
+
 def from_request(request):
     data = request.get_json() or request.data.decode('utf-8')
     if data is None or len(data) == 0:
@@ -25,16 +29,20 @@ def from_request(request):
         raise Exception(error_msg)
 
     if not contains(['workspaces', 'prices'], config):
+        missing_keys = '\n- '.join(missing(['workspaces', 'prices'], config))
         error_msg = json.dumps({'success': False,
-                                'error': 'Missing config info',
+                                'error': f'Missing config info: '
+                                         f'{missing_keys}',
                                 'info': config})
         raise Exception(error_msg)
 
     req_workspace_keys = ['url', 'id', 'type', 'name', 'token']
     for workspace in config['workspaces']:
         if not contains(req_workspace_keys, workspace):
+            missing_keys = '\n- '.join(missing(req_workspace_keys, workspace))
             error_msg = json.dumps({'success': False,
-                                    'error': 'Missing workspace info',
+                                    'error': f'Missing workspace info: '
+                                             f'{missing_keys}',
                                     'info': workspace})
             raise Exception(error_msg)
 
