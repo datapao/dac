@@ -37,6 +37,72 @@ _configs/config.json_
 }
 ```
 
+#### Sending config during run
+
+After starting the UI, config files can still be added by HTTP send in. To submit a new configuration, use the `ui_uri:port/config` REST API endpoint: send the configuration as a `json` payload in a `POST` request. Please note that currently the whole configuration must be submitted, the old configuration will be replaced
+
+Submission example using python:
+```python
+import requests
+config = {
+    "workspaces": [
+        {
+            "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
+            "id": "[workspace_id]",
+            "type": "[AZURE|AWS]",
+            "name": "[workspace_name]",
+            "token": "[token]"
+          }
+    ],
+    "prices": {"interactive": 1.0, "job": 1.0},
+    "thresholds": [],
+    "scraper": {"interval": 270}
+}
+requests.post("example_uri:port/config", json=config)
+```
+
+The response is a json object with 3 fields:
+- "success": boolean, if the submission was successful
+- "error": string | None, error message in case of unsuccessful submission, empty otherwise
+- "info": json, the relevant part of config, in case of errors the problematic part of the config, otherwise the full config
+
+Response examples:
+- Successful submission:
+    ```json
+    {
+        "success": true,
+        "error": null,
+        "info": {
+            "workspaces": [
+                {
+                    "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
+                    "id": "[workspace_id]",
+                    "type": "[AZURE|AWS]",
+                    "name": "[workspace_name]",
+                    "token": "[token]"
+                }
+            ],
+            "prices": {
+                "interactive": 1.0,
+                "job": 1.0
+            },
+            "thresholds": [
+            ],
+            "scraper": {
+                "interval": 270
+            }
+        }
+    }
+    ```
+- Missing interactive price config:
+    ```json
+    {
+        "success": false,
+        "error": "Missing price info",
+        "info": {"prices": {"job": 0.15}}
+    }
+    ```
+
 ## Install
 
 ```bash
