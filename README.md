@@ -39,12 +39,25 @@ _configs/config.json_
 
 #### Sending config during run
 
-After starting the UI, config files can still by send in. To submit a new configuration, use the `ui_uri:port/config` REST API endpoint: send the configuration as `json` payload in a `POST` request. Please note that currently the whole configuration must be submitted, the old one will be replaced.
+After starting the UI, config files can still be added by HTTP send in. To submit a new configuration, use the `ui_uri:port/config` REST API endpoint: send the configuration as a `json` payload in a `POST` request. Please note that currently the whole configuration must be submitted, the old configuration will be replaced
 
 Submission example using python:
 ```python
 import requests
-config = { ... }
+config = {
+    "workspaces": [
+        {
+            "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
+            "id": "[workspace_id]",
+            "type": "[AZURE|AWS]",
+            "name": "[workspace_name]",
+            "token": "[token]"
+          }
+    ],
+    "prices": {"interactive": 1.0, "job": 1.0},
+    "thresholds": [],
+    "scraper": {"interval": 270}
+}
 requests.post("example_uri:port/config", json=config)
 ```
 
@@ -59,7 +72,26 @@ Response examples:
     {
         "success": true,
         "error": null,
-        "info": { ... }
+        "info": {
+            "workspaces": [
+                {
+                    "url": "westeurope.azuredatabricks.net/?o=[workspace_id]",
+                    "id": "[workspace_id]",
+                    "type": "[AZURE|AWS]",
+                    "name": "[workspace_name]",
+                    "token": "[token]"
+                }
+            ],
+            "prices": {
+                "interactive": 1.0,
+                "job": 1.0
+            },
+            "thresholds": [
+            ],
+            "scraper": {
+                "interval": 270
+            }
+        }
     }
     ```
 - Missing interactive price config:

@@ -48,8 +48,10 @@ def from_request(request):
 
     req_prices_keys = ['interactive', 'job']
     if not contains(req_prices_keys, config['prices']):
+        missing_keys = '\n- '.join(missing(req_prices_keys, config['prices']))
         error_msg = json.dumps({'success': False,
-                                'error': 'Missing price info',
+                                'error': f'Missing config info: '
+                                         f'{missing_keys}',
                                 'info': config['prices']})
         raise Exception(error_msg)
 
@@ -62,7 +64,7 @@ def save(config, path):
             json.dump(config, jsonfile)
     except Exception as e:
         error_msg = json.dumps({'success': False,
-                                'error': 'Saving config failed',
+                                'error': f'Saving config to {path} failed',
                                 'info': str(e)})
         raise Exception(error_msg)
 

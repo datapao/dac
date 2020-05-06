@@ -48,7 +48,7 @@ def format_datetime(value):
 app.jinja_env.filters['datetime'] = format_datetime
 
 
-@functools.lru_cache(maxsize=None)
+@functools.lru_cache(maxsize=128)
 def get_settings(path=None):
     try:
         if path is None:
@@ -59,13 +59,14 @@ def get_settings(path=None):
     except Exception:
         abort(404, {'error': 'Missing',
                     'type': 'config file',
-                    'message': 'Config file is missing. Upload one using by '
-                               'posting to /config endpoint!'})
+                    'message': f'Config file is missing (path: {path}). '
+                               f'Upload one using by posting '
+                               f'to /config endpoint!'})
 
     return settings
 
 
-@functools.lru_cache(maxsize=None)
+@functools.lru_cache(maxsize=128)
 def get_price_settings(path=None):
     settings = get_settings(path)
     price = settings.get('prices')
