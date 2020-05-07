@@ -426,31 +426,38 @@ def get_workspaces(json_path):
     return [Workspace(**workspace) for workspace in load_workspaces(json_path)]
 
 
-def scraping_loop(interval: int, json_path: str):
+def create_session():
+    engine = create_engine(engine_url)
+    Base.metadata.bind = engine
+    DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
+    session = DBSession()
+    return session
+
+
+def scraping_loop(interval: int, json_path: str, session: "Session"):
     while True:
         log.info("loop will go into another scraping")
-        result = scrape(json_path)
+        result = scrape(json_path, session)
         log.info(f"Scraping {result.scraper_run_id[:8]} finished.")
         log.debug(f"Going to sleep for {interval} seconds")
         time.sleep(interval)
 
 
 def start_scheduled_scraping(interval: int, json_path: str) -> threading.Thread:
+    session = create_session()
     thread = threading.Thread(target=scraping_loop,
                               name="scraping-loop-Thread",
-                              args=[interval, json_path])
+                              args=[interval, json_path, session])
     thread.start()
     return thread
 
 
-def scrape(json_path):
+def scrape(json_path, session=None):
     log.info("Scraping started...")
     start_time = time.time()
 
-    engine = create_engine(engine_url)
-    Base.metadata.bind = engine
-    DBSession = scoped_session(sessionmaker(bind=engine, autoflush=False))
-    session = DBSession()
+    if session is None:
+        session = create_session()
 
     instance_types = upsert_instance_types(session)
 
@@ -465,5 +472,6 @@ def scrape(json_path):
 
     session.add(final_result)
     session.commit()
+
     log.info(f"Scraping done. Duration: {time.time() - start_time:.2f}", )
     return final_result
