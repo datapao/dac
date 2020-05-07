@@ -384,7 +384,7 @@ class JobRun(Base):
     run_page_url = Column(String)
     run_type = Column(String, nullable=False)
 
-    workspace = relationship(Workspace)
+    workspace = relationship(Workspace, viewonly=True)
     cluster = relationship(Cluster)
     cluster_type = relationship("ClusterType")
 
