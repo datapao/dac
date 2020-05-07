@@ -16,7 +16,7 @@ import configs
 from aggregation import concat_dfs, get_time_index, get_time_grouper
 from aggregation import aggregate, get_cluster_dbus, get_running_jobs
 from aggregation import get_last_7_days_dbu, aggregate_for_entity
-from aggregation import aggregate_by_types
+from aggregation import aggregate_by_types, empty_timeseries
 from db import engine_url, Base
 from db import Workspace, Cluster, Job, JobRun, User, ScraperRun
 
@@ -160,15 +160,15 @@ def view_dashboard():
     numbjobs_dict = get_running_jobs(jobs)
     last7dbu_dict = aggregate_by_types(states, get_last_7_days_dbu)
 
-    time_stats_dict = {}
+    time_stats_dict = {'interactive': empty_timeseries(),
+                       'job': empty_timeseries()}
     if not states.empty:
         results = aggregate_by_types(states, aggregate_for_entity)
-        time_stats_dict = {}
-        cost_summary_dict = {}
+        # cost_summary_dict = {}
         for key, (cost_summary, time_stats) in results.items():
             time_stats['dbu_cumsum'] = time_stats['interval_dbu_sum'].cumsum()
             time_stats_dict[key] = time_stats.to_dict("records")
-            cost_summary_dict[key] = cost_summary.to_dict()
+            # cost_summary_dict[key] = cost_summary.to_dict()
 
     return render_template('dashboard.html',
                            time_stats=time_stats_dict,
@@ -183,9 +183,9 @@ def view_workspace(workspace_id):
     session = create_session()
     try:
         workspace = (session
-                    .query(Workspace)
-                    .filter(Workspace.id == workspace_id)
-                    .one())
+                     .query(Workspace)
+                     .filter(Workspace.id == workspace_id)
+                     .one())
     except Exception:
         return view_missing(type="workspace",
                             id=workspace_id)
@@ -193,9 +193,10 @@ def view_workspace(workspace_id):
     numbjobs_dict = get_running_jobs(workspace.jobruns)
     price_settings = get_price_settings()
 
+    time_stats_dict = {'interactive': empty_timeseries(),
+                       'job': empty_timeseries()}
     if not states.empty:
         results = aggregate_by_types(states, aggregate_for_entity)
-        time_stats_dict = {}
         cost_summary_dict = {}
         for key, (cost_summary, time_stats) in results.items():
             time_stats_dict[key] = time_stats.to_dict("records")
@@ -233,7 +234,6 @@ def view_workspace(workspace_id):
             "cost": 0.0,
             "weekly_cost": 0.0
         }
-        time_stats_dict = {'interactive': {}, 'job': {}}
         top_users_dict = {}
 
     clusters_by_type = {}
@@ -300,9 +300,10 @@ def view_clusters():
     level_info_data = get_level_info_data()
     price_settings = get_price_settings()
 
+    time_stats_dict = {'interactive': empty_timeseries(),
+                       'job': empty_timeseries()}
     if not states.empty:
         results = aggregate_by_types(states, aggregate_for_entity)
-        time_stats_dict = {}
         for key, (_, time_stats) in results.items():
             time_stats_dict[key] = time_stats.to_dict("records")
 
@@ -314,7 +315,6 @@ def view_clusters():
                         .dbu.to_dict())
     else:
         cluster_dbus = {cluster.cluster_id: 0.0 for cluster in clusters}
-        time_stats_dict = {'interactive': {}, 'job': {}}
 
     clusters_by_type = {}
     for cluster in clusters:
@@ -340,6 +340,9 @@ def view_user(username):
     except Exception:
         return view_missing(type="user", id=username)
     states = user.state_df()
+
+    time_stats_dict = {'interactive': empty_timeseries(),
+                       'job': empty_timeseries()}
     if not states.empty:
         workspaces = (
             concat_dfs({(w.workspace.id, w.workspace.name): w.workspace.state_df()
@@ -373,7 +376,7 @@ def view_user(username):
 
         price_settings = get_price_settings()
         results = aggregate_by_types(states, aggregate_for_entity)
-        time_stats_dict = {}
+
         cost_summary_dict = {}
         for key, (cost_summary, time_stats) in results.items():
             time_stats_dict[key] = time_stats.to_dict("records")
@@ -404,7 +407,6 @@ def view_user(username):
             "cost": 0.0,
             "weekly_cost": 0.0
         }
-        time_stats_dict = {'interactive': {}, 'job': {}}
 
     return render_template('user.html',
                            user=user,
@@ -483,17 +485,17 @@ def view_job(job_id):
                             'duration': 'median'})
                       .fillna(0.)
                       .reindex(get_time_index(30), fill_value=0.))
-        time_stats['ts'] = time_stats.index.format()
     else:
-        time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
-                      .reindex(get_time_index(30), fill_value=0.))
-        time_stats['ts'] = time_stats.index.format()
+        time_stats = empty_timeseries(as_df=True)
+
+    time_stats['ts'] = time_stats.index.format()
+    time_stats_dict = time_stats.to_dict("records")
 
     return render_template('job.html',
                            job=job,
                            price_settings=price_settings,
                            last7_stats=last7_stats,
-                           time_stats=time_stats.to_dict("records"))
+                           time_stats=time_stats_dict)
 
 
 @app.route('/jobs')
@@ -525,8 +527,7 @@ def view_jobs():
                       .fillna(0.)
                       .reindex(get_time_index(30), fill_value=0))
     else:
-        time_stats = (pd.DataFrame(columns=['run_id', 'dbu', 'duration'])
-                      .reindex(get_time_index(30), fill_value=0))
+        time_stats = empty_timeseries(as_df=True)
 
     time_stats['ts'] = time_stats.index.format()
     time_stats_dict = time_stats.to_dict("records")
@@ -548,6 +549,7 @@ def view_scrape_runs():
     last_scrape = "no scrape run yet"
     if len(runs) > 0:
         last_scrape = datetime.now() - runs[0].end_time
+
     return render_template('scrape_runs.html',
                            runs=runs,
                            last_scrape=last_scrape)
