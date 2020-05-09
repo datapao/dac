@@ -5,6 +5,7 @@ import functools
 
 from datetime import timedelta
 
+import numpy as np
 import pandas as pd
 
 from sqlalchemy import func
@@ -274,6 +275,20 @@ class EventParser:
                 + joined[f'worker_{cluster_type}']
                 * joined['num_workers'])
 
+    def deduplicate(self, result):
+        id_columns = ['user_id', 'cluster_id', 'timestamp', 'state']
+        numeric_columns = [col for col in
+                           result.select_dtypes(include=np.number).columns
+                           if col not in id_columns]
+        other_columns = [col for col in result.columns
+                         if col not in id_columns + numeric_columns]
+
+        aggregations = {col: np.sum for col in numeric_columns}
+        for col in other_columns:
+            aggregations[col] = 'first'
+
+        return result.groupby(id_columns, as_index=False).agg(aggregations)
+
 
 @functools.lru_cache(maxsize=None)
 def query_instance_types(session, as_df=True) -> pd.DataFrame:
@@ -322,6 +337,7 @@ def parse_events(session: "Session",
     # Parsing
     parser = EventParser(instance_types)
     result = parser.parse(events, cluster_names)
+    deduplicated = parser.deduplicate(result)
 
     log.info(f"Parsing done. Duration: {time.time() - start_time:.2f}")
-    return result
+    return deduplicated
