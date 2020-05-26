@@ -25,6 +25,20 @@ def concat_dfs(dfs):
     return pd.concat(dfs, sort=False) if len(dfs) else pd.DataFrame()
 
 
+def empty_timeseries(columns=None, days=30, as_df=False):
+    if columns is None:
+        columns = ['run_id', 'dbu', 'duration']
+
+    time_stats = (pd.DataFrame(columns=columns)
+                  .reindex(get_time_index(days), fill_value=0.))
+    time_stats['ts'] = time_stats.index.format()
+
+    if not as_df:
+        time_stats = time_stats.to_dict('records')
+
+    return time_stats
+
+
 def aggregate(df: pd.DataFrame,
               col: str = 'dbu',
               by: list = None,
@@ -76,6 +90,8 @@ def get_running_jobs(jobs):
                    .reindex(get_time_index(30), fill_value=0))
         numjobs['ts'] = numjobs.index.format()
         numbjobs_dict = numjobs.to_dict('records')
+    else:
+        numjobs = empty_timeseries(columns=['job_id'])
 
     return numbjobs_dict
 
@@ -91,6 +107,9 @@ def get_last_7_days_dbu(states: pd.DataFrame) -> dict:
                     .reindex(get_time_index(7), fill_value=0))
         last7dbu['ts'] = last7dbu.index.format()
         last7dbu_dict = last7dbu.to_dict('records')
+    else:
+        last7dbu_dict = empty_timeseries(columns=['interval_dbu'], days=7)
+
     return last7dbu_dict
 
 
@@ -136,14 +155,10 @@ def aggregate_for_entity(states: pd.DataFrame):
 
 
 def aggregate_by_types(states: pd.DataFrame, aggregation_func):
-    results = {}
-
     interactive_states = states.loc[states.cluster_type == 'interactive']
-    if not interactive_states.empty:
-        results['interactive'] = aggregation_func(interactive_states)
-
     job_states = states.loc[states.cluster_type == 'job']
-    if not job_states.empty:
-        results['job'] = aggregation_func(job_states)
+
+    results = {'interactive': aggregation_func(interactive_states),
+               'job': aggregation_func(job_states)}
 
     return results
