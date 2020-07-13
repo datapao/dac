@@ -92,7 +92,7 @@ def scrape_azure_instance_types(regex):
 
 
 def scrape_instance_types():
-    regex = re.compile(r'(([a-z]\d[a-z]?.[\d]*[x]?large)|'
+    regex = re.compile(r'(([a-z]\d[a-z]{0,2}.[\d]*[x]?large)|'
                        r'((Standard_|Premium_)'
                        r'[a-zA-Z]{1,2}\d+[a-zA-Z]?(_v\d*)?))')
 
@@ -119,6 +119,9 @@ def scrape_instance_types():
     # MERGE
     df = pd.concat([aws, azure]).reset_index(drop=True)
     df['scrape_time'] = datetime.datetime.today()
+
+    print("AWS NULL ROWS:", aws.loc[aws.isnull().any(axis=1)])
+    print("AZURE NULL ROWS:", azure.loc[azure.isnull().any(axis=1)])
 
     return df
 
