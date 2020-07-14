@@ -120,9 +120,6 @@ def scrape_instance_types():
     df = pd.concat([aws, azure]).reset_index(drop=True)
     df['scrape_time'] = datetime.datetime.today()
 
-    print("AWS NULL ROWS:", aws.loc[aws.isnull().any(axis=1)])
-    print("AZURE NULL ROWS:", azure.loc[azure.isnull().any(axis=1)])
-
     return df
 
 
@@ -131,6 +128,7 @@ def upsert_instance_types(session: "Session") -> pd.DataFrame:
     log.debug('Instance type scraping started...')
     today = datetime.datetime.today()
     one_month = datetime.timedelta(days=30)
+    query_instance_types.cache_clear()
     latest_instance_types = query_instance_types(session, as_df=False)
 
     if latest_instance_types is None:
